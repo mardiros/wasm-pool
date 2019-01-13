@@ -1,0 +1,16 @@
+[package]
+name = "wasm-pool"
+version = "0.1.0"
+authors = ["Guillaume Gauvrit <guillaume@gauvr.it>"]
+edition = "2018"
+
+
+[dependencies]
+
+stdweb = "^0.4.6"
+log = "^0.4"
+web_logger = "^0.1"
+quicksilver = "0.3.5"
+# same version as quicksilver ?
+ncollide2d = "0.17.3"
+nalgebra = "0.16.13"
