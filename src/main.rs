@@ -1,14 +1,14 @@
 #[macro_use]
 extern crate log;
-use std::cell::Cell;
 
 use nalgebra as na;
 use ncollide2d::events::ContactEvent;
-use ncollide2d::math::{Isometry as Isometry2, Translation as Translation2, Vector as Vector2};
-use ncollide2d::shape::{Ball, Plane, ShapeHandle};
-use ncollide2d::world::{
-    CollisionGroups, CollisionObjectHandle, CollisionWorld, GeometricQueryType,
-};
+use ncollide2d::math::{Isometry as Isometry2, Vector as Vector2};
+use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
+use nphysics2d::world::World;
+use nphysics2d::object::{BodyHandle, Material};
+use nphysics2d::volumetric::Volumetric;
+use nphysics2d::math::Velocity;
 
 use quicksilver::{
     geom::{Circle, Rectangle, Vector},
@@ -18,138 +18,133 @@ use quicksilver::{
     Result,
 };
 
-struct BallPos(Vector2<f32>);
+const COLLIDER_MARGIN: f32 = 0.01;
+const BALL_SIZE: f32 = 12.0;
+const WIDTH: f32 = 772.0;
+const HEIGHT: f32 = 400.;
+const MARGIN_TOP: f32 = 150.;
+const MARGIN_LEFT: f32 = 100.;
+const BORDER: f32 = 28.;
+const BAND: f32 = 8.;
+const HOLE_SIZE: f32 = 16.;
 
-impl Into<Vector> for BallPos {
+
+struct FromNPVec(Vector2<f32>);
+
+impl Into<Vector> for FromNPVec {
     fn into(self) -> Vector {
         Vector::new(self.0.x, self.0.y)
     }
 }
 
-#[derive(Clone)]
-struct CollisionObjectData {
-    pub name: &'static str,
-    pub velocity: Option<Cell<Vector2<f32>>>,
-}
-
-impl CollisionObjectData {
-    pub fn new(name: &'static str, velocity: Option<Vector2<f32>>) -> CollisionObjectData {
-        let init_velocity;
-        if let Some(velocity) = velocity {
-            init_velocity = Some(Cell::new(velocity))
-        } else {
-            init_velocity = None
-        }
-
-        CollisionObjectData {
-            name: name,
-            velocity: init_velocity,
-        }
-    }
-}
 
 struct PoolTable {
-    width: f32,
-    height: f32,
-    margin_left: f32,
-    margin_top: f32,
-    padding: f32,
-    hole_size: f32,
-    world: CollisionWorld<f32, CollisionObjectData>,
-    white_ball_handle: CollisionObjectHandle,
+    world: World<f32>,
+    white_ball_handle: BodyHandle,
+    ball_8_handle: BodyHandle,
 }
 
 impl State for PoolTable {
     fn new() -> Result<PoolTable> {
-        let width = 772.;
-        let height = 400.;
-        let margin_left = 100.;
-        let margin_top = 150.;
-        let padding = 30.;
-        let hole_size = 16.;
-        let ball_size = 12.0_f32;
 
-        let ball_shape = ShapeHandle::new(Ball::new(ball_size));
-        let white_ball = CollisionObjectData::new("white_ball", Some(Vector2::new(90., 70.)));
+        let mut world: World<f32> = World::new();
+        //world.set_gravity(Vector2::new(0.0, 9.81));
+        
+        let material: Material<f32> = Material::default();
+        let height_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(COLLIDER_MARGIN, HEIGHT + 2. * BORDER - 2. * COLLIDER_MARGIN)));
+        let width_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(WIDTH + 2. * BORDER - 2. * COLLIDER_MARGIN, COLLIDER_MARGIN)));
+
+        let top = MARGIN_TOP + BORDER;
+        let left = MARGIN_LEFT + BORDER;
+        // left
+        let border_pos = Isometry2::new(Vector2::new(left, top), na::zero());
+        world.add_collider(
+            COLLIDER_MARGIN,
+            height_border_shape.clone(),
+            BodyHandle::ground(),
+            border_pos,
+            material.clone(),
+        );
+
+        // top
+        let border_pos = Isometry2::new(Vector2::new(left, top), na::zero());
+        world.add_collider(
+            COLLIDER_MARGIN,
+            width_border_shape.clone(),
+            BodyHandle::ground(),
+            border_pos,
+            material.clone(),
+        );
+
+        // right
+        let border_pos = Isometry2::new(Vector2::new(left + WIDTH + 2. * BAND, top), na::zero());
+        world.add_collider(
+            COLLIDER_MARGIN,
+            height_border_shape.clone(),
+            BodyHandle::ground(),
+            border_pos,
+            material.clone(),
+        );
+        // bottom
+        let border_pos = Isometry2::new(Vector2::new(left, top + HEIGHT + 2. * BAND), na::zero());
+        world.add_collider(
+            COLLIDER_MARGIN,
+            width_border_shape.clone(),
+            BodyHandle::ground(),
+            border_pos,
+            material.clone(),
+        );
+
+        let ball_shape = ShapeHandle::new(Ball::new(BALL_SIZE));
         let white_pos = Isometry2::new(
             Vector2::new(
-                (margin_left + padding + width) as f32 * 0.28,
-                (margin_top + padding + height) as f32 * 0.5,
+               MARGIN_LEFT + WIDTH * 0.28,
+               MARGIN_TOP + HEIGHT * 0.5,
             ),
             na::zero(),
         );
 
-        let mut balls_groups = CollisionGroups::new();
-        balls_groups.set_membership(&[1]);
-        let contacts_query = GeometricQueryType::Contacts(0.0, 0.0);
+        let inertia = ball_shape.inertia(1.);
+        let center_of_mass = ball_shape.center_of_mass();
+        let white_ball_handle = world.add_rigid_body(white_pos, inertia, center_of_mass);
 
-        let mut band_groups = CollisionGroups::new();
-        band_groups.set_membership(&[2]);
-        band_groups.set_whitelist(&[1]);
-
-        let band = CollisionObjectData::new("band", None);
-        let band_left = ShapeHandle::new(Plane::new(Vector2::x_axis()));
-        let band_bottom = ShapeHandle::new(Plane::new(Vector2::y_axis()));
-        let band_right = ShapeHandle::new(Plane::new(-Vector2::x_axis()));
-        let band_top = ShapeHandle::new(Plane::new(-Vector2::y_axis()));
-
-        // Positions of the planes.
-        let bands_pos = [
-            Isometry2::new(Vector2::new(margin_left + padding, 0.0), na::zero()),
-            Isometry2::new(Vector2::new(0.0, margin_top + padding), na::zero()),
-            Isometry2::new(Vector2::new(margin_left + padding + width, 0.0), na::zero()),
-            Isometry2::new(Vector2::new(0.0, margin_top + padding + height), na::zero()),
-        ];
-
-        let mut world = CollisionWorld::new(0.02);
-
-        let _handle0 = world.add(
-            bands_pos[0],
-            band_left,
-            band_groups,
-            contacts_query,
-            band.clone(),
-        );
-        let _handle1 = world.add(
-            bands_pos[1],
-            band_bottom,
-            band_groups,
-            contacts_query,
-            band.clone(),
-        );
-        let _handle2 = world.add(
-            bands_pos[2],
-            band_right,
-            band_groups,
-            contacts_query,
-            band.clone(),
+        world.add_collider(
+            COLLIDER_MARGIN,
+            ball_shape.clone(),
+            white_ball_handle,
+            Isometry2::identity(),
+            material.clone(),
         );
 
-        let _handle3 = world.add(
-            bands_pos[3],
-            band_top,
-            band_groups,
-            contacts_query,
-            band.clone(),
+        let ball_8_pos = Isometry2::new(
+            Vector2::new(
+               MARGIN_LEFT + WIDTH * 0.28 + 5.,
+               MARGIN_TOP + HEIGHT * 0.75,
+            ),
+            na::zero(),
         );
 
-        let white_ball_handle = world.add(
-            white_pos,
-            ball_shape,
-            balls_groups,
-            contacts_query,
-            white_ball.clone(),
+        let inertia = ball_shape.inertia(1.);
+        let center_of_mass = ball_shape.center_of_mass();
+        let ball_8_handle = world.add_rigid_body(ball_8_pos, inertia, center_of_mass);
+
+        world.add_collider(
+            COLLIDER_MARGIN,
+            ball_shape.clone(),
+            ball_8_handle,
+            Isometry2::identity(),
+            material.clone(),
         );
+
+        let ball_object = world.rigid_body_mut(white_ball_handle).unwrap();
+        //ball_object.set_status(BodyStatus::Dynamic);
+        let vel = Velocity::linear(0.0, 190.0);
+        ball_object.set_velocity(vel);
 
         Ok(PoolTable {
-            width,
-            height,
-            margin_left,
-            margin_top,
-            padding,
-            hole_size,
             world: world,
             white_ball_handle: white_ball_handle,
+            ball_8_handle: ball_8_handle,
         })
     }
 
@@ -161,195 +156,196 @@ impl State for PoolTable {
 
         window.clear(background)?;
 
-        let green = Color::WHITE
+        let table_color = Color::WHITE
             .with_red(0x28 as f32 / 0xff as f32)
             .with_green(0x6b as f32 / 0xff as f32)
             .with_blue(0x31 as f32 / 0xff as f32);
-        let band = Color::WHITE
+        let band_color = Color::WHITE
             .with_red(0x0b as f32 / 0xff as f32)
             .with_green(0x45 as f32 / 0xff as f32)
             .with_blue(0x16 as f32 / 0xff as f32);
-        let table = Color::WHITE
+        let border_color = Color::WHITE
             .with_red(0x4a as f32 / 0xff as f32)
             .with_green(0x2c as f32 / 0xff as f32)
             .with_blue(0x14 as f32 / 0xff as f32);
+        let hole_color =  Color::WHITE
+            .with_red(0x22 as f32 / 0xff as f32)
+            .with_green(0x22 as f32 / 0xff as f32)
+            .with_blue(0x22 as f32 / 0xff as f32);
 
         window.draw(
             &Rectangle::new(
-                (self.margin_left, self.margin_top),
+                (MARGIN_LEFT, MARGIN_TOP),
                 (
-                    self.width + self.padding * 2.,
-                    self.height + self.padding * 2.,
+                    WIDTH + BORDER * 2. + BAND * 2.,
+                    HEIGHT + BORDER * 2. + BAND * 2.,
                 ),
             ),
-            Col(table),
-        );
-        window.draw(
-            &Rectangle::new(
-                (
-                    self.margin_left + self.padding - self.hole_size / 2.,
-                    self.margin_top + self.padding - self.hole_size / 2.,
-                ),
-                (self.width + self.hole_size, self.height + self.hole_size),
-            ),
-            Col(band),
+            Col(border_color),
         );
         window.draw(
             &Rectangle::new(
                 (
-                    self.margin_left + self.padding,
-                    self.margin_top + self.padding,
+                    MARGIN_LEFT + BORDER,
+                    MARGIN_TOP + BORDER,
                 ),
-                (self.width, self.height),
+                (WIDTH + BAND * 2., HEIGHT + BAND * 2.),
             ),
-            Col(green),
+            Col(band_color),
+        );
+        window.draw(
+            &Rectangle::new(
+                (
+                    MARGIN_LEFT + BORDER + BAND,
+                    MARGIN_TOP + BORDER + BAND,
+                ),
+                (WIDTH, HEIGHT),
+            ),
+            Col(table_color),
         );
 
+        // TOP LEFT hole
         window.draw(
             &Circle::new(
                 (
-                    self.margin_left + self.padding,
-                    self.margin_top + self.padding,
+                    MARGIN_LEFT + BORDER + BAND * 0.75,
+                    MARGIN_TOP + BORDER + BAND * 0.75,
                 ),
-                self.hole_size,
+                HOLE_SIZE,
             ),
-            Col(Color::BLACK),
-        );
-        window.draw(
-            &Circle::new(
-                (
-                    self.margin_left + self.padding + self.width / 2.,
-                    self.margin_top + self.padding - self.hole_size / 3.,
-                ),
-                self.hole_size,
-            ),
-            Col(Color::BLACK),
-        );
-        window.draw(
-            &Circle::new(
-                (
-                    self.margin_left + self.padding + self.width,
-                    self.margin_top + self.padding,
-                ),
-                self.hole_size,
-            ),
-            Col(Color::BLACK),
+            Col(hole_color),
         );
 
+        // TOP hole
         window.draw(
             &Circle::new(
                 (
-                    self.margin_left + self.padding,
-                    self.margin_top + self.padding + self.height,
+                    MARGIN_LEFT + BORDER + BAND * 0.5  + WIDTH / 2.,
+                    MARGIN_TOP + BORDER + BAND * 0.5,
                 ),
-                self.hole_size,
+                HOLE_SIZE,
             ),
-            Col(Color::BLACK),
+            Col(hole_color),
         );
+
+        // top right hole
         window.draw(
             &Circle::new(
                 (
-                    self.margin_left + self.padding + self.width / 2.,
-                    self.margin_top + self.padding + self.height + self.hole_size / 3.,
+                    MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
+                    MARGIN_TOP + BORDER + BAND * 0.75,
                 ),
-                self.hole_size,
+                HOLE_SIZE,
             ),
-            Col(Color::BLACK),
+            Col(hole_color),
         );
+
+        // right hole
         window.draw(
             &Circle::new(
                 (
-                    self.margin_left + self.padding + self.width,
-                    self.margin_top + self.padding + self.height,
+                    MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.5,
+                    MARGIN_TOP + BORDER + BAND * 0.75 + HEIGHT / 2.,
                 ),
-                self.hole_size,
+                HOLE_SIZE,
             ),
-            Col(Color::BLACK),
+            Col(hole_color),
+        );
+
+        // bottom right hole
+        window.draw(
+            &Circle::new(
+                (
+                    MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
+                    MARGIN_TOP + BORDER  + HEIGHT + BAND * 1.25,
+                ),
+                HOLE_SIZE,
+            ),
+            Col(hole_color),
+        );
+
+        // bottom hole
+        window.draw(
+            &Circle::new(
+                (
+                    MARGIN_LEFT + BORDER + BAND * 0.5  + WIDTH / 2.,
+                    MARGIN_TOP + BORDER  + HEIGHT + BAND * 1.5,
+                ),
+                HOLE_SIZE,
+            ),
+            Col(hole_color),
+        );
+
+        // bottom left hole
+        window.draw(
+            &Circle::new(
+                (
+                    MARGIN_LEFT + BORDER + BAND * 0.75,
+                    MARGIN_TOP + BORDER  + HEIGHT + BAND * 1.25,
+                ),
+                HOLE_SIZE,
+            ),
+            Col(hole_color),
+        );
+
+        // left hole
+        window.draw(
+            &Circle::new(
+                (
+                    MARGIN_LEFT + BORDER + BAND * 0.25,
+                    MARGIN_TOP + BORDER + BAND * 0.75 + HEIGHT / 2.,
+                ),
+                HOLE_SIZE,
+            ),
+            Col(hole_color),
         );
 
         //self.white_ball.draw(window);
-        let ball_object = self.world.collision_object(self.white_ball_handle).unwrap();
+        let ball_object = self.world.body_part(self.white_ball_handle);
         let pos = ball_object.position().clone();
-        let ball_ball: &Ball<f32> = ball_object.shape().as_shape().unwrap();
-
         let pos = pos.translation.vector;
+        //info!("Ball pos: {:?}", pos);
+        let ball_ball = Ball::new(BALL_SIZE);
 
         window.draw(
-            &Circle::from_ball(BallPos(pos), ball_ball.clone()),
+            &Circle::from_ball(FromNPVec(pos), ball_ball),
             Col(Color::WHITE),
+        );
+
+        let ball_object = self.world.body_part(self.ball_8_handle);
+        let pos = ball_object.position().clone();
+        let pos = pos.translation.vector;
+        //info!("Ball pos: {:?}", pos);
+        let ball_ball = Ball::new(BALL_SIZE);
+
+        window.draw(
+            &Circle::from_ball(FromNPVec(pos), ball_ball),
+            Col(Color::BLACK),
         );
 
         Ok(())
     }
 
     fn update(&mut self, _window: &mut Window) -> Result<()> {
-        self.update_position();
-        self.update_vellocity();
-        self.world.update();
-
-        for event in self.world.contact_events() {
-            self.handle_contact_event(event)
+        self.world.step();
+        for contact in self.world.contact_events() {
+            // Handle contact events.
+            self.handle_contact_event(contact)
         }
         Ok(())
     }
 }
 
 impl PoolTable {
+
     fn handle_contact_event(&self, event: &ContactEvent) {
         if let &ContactEvent::Started(collider1, collider2) = event {
-            // NOTE: real-life applications would avoid this systematic allocation.
-            let pair = self.world.contact_pair(collider1, collider2).unwrap();
-            let mut collector = Vec::new();
-            pair.contacts(&mut collector);
+            info!("!!! handle_contact_event {:?} {:?} {:?}", event, collider1, collider2);
 
-            let co1 = self.world.collision_object(collider1).unwrap();
-            let co2 = self.world.collision_object(collider2).unwrap();
-
-            //  balls has velocity, border don't.
-            if let Some(ref vel) = co1.data().velocity {
-                let normal = collector[0].deepest_contact().unwrap().contact.normal;
-                vel.set(vel.get() - 2.0 * na::dot(&vel.get(), &normal) * *normal)
-            }
-            if let Some(ref vel) = co2.data().velocity {
-                let normal = collector[0].deepest_contact().unwrap().contact.normal;
-                let new_vel = vel.get() - 2.0 * na::dot(&vel.get(), &normal) * *normal;
-                vel.set(new_vel)
-            }
-        }
-    }
-
-    fn update_position(&mut self) {
-        let timestep = 0.06;
-        let ball_object = self.world.collision_object(self.white_ball_handle).unwrap();
-        let ball_velocity = ball_object.data().velocity.as_ref();
-
-        if let Some(vel) = ball_velocity {
-            // Integrate the positions.
-            let displacement = Translation2::from(timestep * vel.get());
-            let ball_pos = displacement * ball_object.position();
-
-            self.world.set_position(self.white_ball_handle, ball_pos);
-            //info!("Ball position: {:?}", ball_pos)
-        }
-    }
-    fn update_vellocity(&mut self) {
-        let ball_object = self
-            .world
-            .collision_object_mut(self.white_ball_handle)
-            .unwrap();
-        let ball = ball_object.data_mut();
-        if let Some(ref vel) = ball.velocity {
-            let new_vel = Vector2::new(vel.get().x * 0.99, vel.get().y * 0.99);
-            if new_vel.x < -10. || new_vel.x > 10. || new_vel.y > 10. || new_vel.y < -10. {
-                if let Some(ref vel) = ball.velocity {
-                    vel.set(new_vel);
-                }
-            } else {
-                ball.velocity = None;
-            }
         }
     }
 }
+
 fn main() {
     web_logger::init();
     info!("Starting the pool");
