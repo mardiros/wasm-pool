@@ -1,14 +1,18 @@
 #[macro_use]
 extern crate log;
 
+use std::vec::Vec;
+
 use nalgebra as na;
 use ncollide2d::events::ContactEvent;
 use ncollide2d::math::{Isometry as Isometry2, Vector as Vector2};
 use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
-use nphysics2d::world::World;
-use nphysics2d::object::{BodyHandle, Material};
-use nphysics2d::volumetric::Volumetric;
+use nphysics2d::force_generator::ForceGenerator;
 use nphysics2d::math::Velocity;
+use nphysics2d::object::{BodyHandle, BodySet, Material};
+use nphysics2d::solver::IntegrationParameters;
+use nphysics2d::volumetric::Volumetric;
+use nphysics2d::world::World;
 
 use quicksilver::{
     geom::{Circle, Rectangle, Vector},
@@ -27,7 +31,45 @@ const MARGIN_LEFT: f32 = 100.;
 const BORDER: f32 = 28.;
 const BAND: f32 = 8.;
 const HOLE_SIZE: f32 = 16.;
+const Z_GRAVITY: f32 = -0.81;
 
+pub struct ZGravity {
+    parts: Vec<BodyHandle>, // Body parts affected by the force generator.
+}
+
+impl ZGravity {
+    // Creates a new radial force generator.
+    pub fn new(parts: Vec<BodyHandle>) -> Self {
+        ZGravity { parts }
+    }
+
+    /// Add a body part to be affected by this force generator.
+    pub fn add_body_part(&mut self, body: BodyHandle) {
+        self.parts.push(body)
+    }
+}
+
+impl ForceGenerator<f32> for ZGravity {
+    fn apply(&mut self, _: &IntegrationParameters<f32>, bodies: &mut BodySet<f32>) -> bool {
+        let mut i = 0;
+
+        while i < self.parts.len() {
+            let body = self.parts[i];
+            if bodies.contains(body) {
+                let mut part = bodies.body_part_mut(body);
+                let mut vel = part.as_ref().velocity();
+                vel.linear.x = vel.linear.x * Z_GRAVITY;
+                vel.linear.y = vel.linear.y * Z_GRAVITY;
+                let force = part.as_ref().inertia() * vel;
+                part.apply_force(&force);
+                i += 1;
+            } else {
+                let _ = self.parts.swap_remove(i);
+            }
+        }
+        true
+    }
+}
 
 struct FromNPVec(Vector2<f32>);
 
@@ -37,7 +79,6 @@ impl Into<Vector> for FromNPVec {
     }
 }
 
-
 struct PoolTable {
     world: World<f32>,
     white_ball_handle: BodyHandle,
@@ -46,13 +87,19 @@ struct PoolTable {
 
 impl State for PoolTable {
     fn new() -> Result<PoolTable> {
-
         let mut world: World<f32> = World::new();
-        //world.set_gravity(Vector2::new(0.0, 9.81));
-        
-        let material: Material<f32> = Material::default();
-        let height_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(COLLIDER_MARGIN, HEIGHT + 2. * BORDER - 2. * COLLIDER_MARGIN)));
-        let width_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(WIDTH + 2. * BORDER - 2. * COLLIDER_MARGIN, COLLIDER_MARGIN)));
+
+        let material: Material<f32> = Material::new(0.5, 0.);
+        let ball_material: Material<f32> = Material::new(0.94, 0.);
+
+        let height_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
+            COLLIDER_MARGIN,
+            HEIGHT + 2. * BORDER - 2. * COLLIDER_MARGIN,
+        )));
+        let width_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
+            WIDTH + 2. * BORDER - 2. * COLLIDER_MARGIN,
+            COLLIDER_MARGIN,
+        )));
 
         let top = MARGIN_TOP + BORDER;
         let left = MARGIN_LEFT + BORDER;
@@ -97,10 +144,7 @@ impl State for PoolTable {
 
         let ball_shape = ShapeHandle::new(Ball::new(BALL_SIZE));
         let white_pos = Isometry2::new(
-            Vector2::new(
-               MARGIN_LEFT + WIDTH * 0.28,
-               MARGIN_TOP + HEIGHT * 0.5,
-            ),
+            Vector2::new(MARGIN_LEFT + WIDTH * 0.28, MARGIN_TOP + HEIGHT * 0.5),
             na::zero(),
         );
 
@@ -113,14 +157,11 @@ impl State for PoolTable {
             ball_shape.clone(),
             white_ball_handle,
             Isometry2::identity(),
-            material.clone(),
+            ball_material.clone(),
         );
 
         let ball_8_pos = Isometry2::new(
-            Vector2::new(
-               MARGIN_LEFT + WIDTH * 0.28 + 5.,
-               MARGIN_TOP + HEIGHT * 0.75,
-            ),
+            Vector2::new(MARGIN_LEFT + WIDTH * 0.28 + 5., MARGIN_TOP + HEIGHT * 0.75),
             na::zero(),
         );
 
@@ -133,13 +174,18 @@ impl State for PoolTable {
             ball_shape.clone(),
             ball_8_handle,
             Isometry2::identity(),
-            material.clone(),
+            ball_material.clone(),
         );
 
         let ball_object = world.rigid_body_mut(white_ball_handle).unwrap();
         //ball_object.set_status(BodyStatus::Dynamic);
-        let vel = Velocity::linear(0.0, 190.0);
+        let vel = Velocity::linear(5.0, 500.0);
         ball_object.set_velocity(vel);
+
+        let mut z_gravity: ZGravity = ZGravity::new(Vec::new());
+        z_gravity.add_body_part(white_ball_handle);
+        z_gravity.add_body_part(ball_8_handle);
+        world.add_force_generator(z_gravity);
 
         Ok(PoolTable {
             world: world,
@@ -168,7 +214,7 @@ impl State for PoolTable {
             .with_red(0x4a as f32 / 0xff as f32)
             .with_green(0x2c as f32 / 0xff as f32)
             .with_blue(0x14 as f32 / 0xff as f32);
-        let hole_color =  Color::WHITE
+        let hole_color = Color::WHITE
             .with_red(0x22 as f32 / 0xff as f32)
             .with_green(0x22 as f32 / 0xff as f32)
             .with_blue(0x22 as f32 / 0xff as f32);
@@ -185,20 +231,14 @@ impl State for PoolTable {
         );
         window.draw(
             &Rectangle::new(
-                (
-                    MARGIN_LEFT + BORDER,
-                    MARGIN_TOP + BORDER,
-                ),
+                (MARGIN_LEFT + BORDER, MARGIN_TOP + BORDER),
                 (WIDTH + BAND * 2., HEIGHT + BAND * 2.),
             ),
             Col(band_color),
         );
         window.draw(
             &Rectangle::new(
-                (
-                    MARGIN_LEFT + BORDER + BAND,
-                    MARGIN_TOP + BORDER + BAND,
-                ),
+                (MARGIN_LEFT + BORDER + BAND, MARGIN_TOP + BORDER + BAND),
                 (WIDTH, HEIGHT),
             ),
             Col(table_color),
@@ -220,7 +260,7 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT + BORDER + BAND * 0.5  + WIDTH / 2.,
+                    MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH / 2.,
                     MARGIN_TOP + BORDER + BAND * 0.5,
                 ),
                 HOLE_SIZE,
@@ -257,7 +297,7 @@ impl State for PoolTable {
             &Circle::new(
                 (
                     MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
-                    MARGIN_TOP + BORDER  + HEIGHT + BAND * 1.25,
+                    MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
                 ),
                 HOLE_SIZE,
             ),
@@ -268,8 +308,8 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT + BORDER + BAND * 0.5  + WIDTH / 2.,
-                    MARGIN_TOP + BORDER  + HEIGHT + BAND * 1.5,
+                    MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH / 2.,
+                    MARGIN_TOP + BORDER + HEIGHT + BAND * 1.5,
                 ),
                 HOLE_SIZE,
             ),
@@ -281,7 +321,7 @@ impl State for PoolTable {
             &Circle::new(
                 (
                     MARGIN_LEFT + BORDER + BAND * 0.75,
-                    MARGIN_TOP + BORDER  + HEIGHT + BAND * 1.25,
+                    MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
                 ),
                 HOLE_SIZE,
             ),
@@ -337,11 +377,12 @@ impl State for PoolTable {
 }
 
 impl PoolTable {
-
     fn handle_contact_event(&self, event: &ContactEvent) {
         if let &ContactEvent::Started(collider1, collider2) = event {
-            info!("!!! handle_contact_event {:?} {:?} {:?}", event, collider1, collider2);
-
+            info!(
+                "!!! handle_contact_event {:?} {:?} {:?}",
+                event, collider1, collider2
+            );
         }
     }
 }
