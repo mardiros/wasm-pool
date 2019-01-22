@@ -8,17 +8,17 @@ use ncollide2d::events::ContactEvent;
 use ncollide2d::math::{Isometry as Isometry2, Vector as Vector2};
 use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
 use nphysics2d::force_generator::ForceGenerator;
-use nphysics2d::math::Velocity;
+//use nphysics2d::math::Velocity;
 use nphysics2d::object::{BodyHandle, BodySet, Material};
 use nphysics2d::solver::IntegrationParameters;
 use nphysics2d::volumetric::Volumetric;
 use nphysics2d::world::World;
 
 use quicksilver::{
-    geom::{Circle, Rectangle, Vector},
+    geom::{Circle, Rectangle, Transform, Vector},
     graphics::{Background::Col, Color},
+    input::Key,
     lifecycle::{run, Settings, State, Window},
-    //input::Key,
     Result,
 };
 
@@ -31,7 +31,7 @@ const MARGIN_LEFT: f32 = 100.;
 const BORDER: f32 = 28.;
 const BAND: f32 = 8.;
 const HOLE_SIZE: f32 = 16.;
-const Z_GRAVITY: f32 = -0.81;
+const Z_GRAVITY: f32 = -0.9;
 
 pub struct ZGravity {
     parts: Vec<BodyHandle>, // Body parts affected by the force generator.
@@ -52,7 +52,6 @@ impl ZGravity {
 impl ForceGenerator<f32> for ZGravity {
     fn apply(&mut self, _: &IntegrationParameters<f32>, bodies: &mut BodySet<f32>) -> bool {
         let mut i = 0;
-
         while i < self.parts.len() {
             let body = self.parts[i];
             if bodies.contains(body) {
@@ -60,8 +59,17 @@ impl ForceGenerator<f32> for ZGravity {
                 let mut vel = part.as_ref().velocity();
                 vel.linear.x = vel.linear.x * Z_GRAVITY;
                 vel.linear.y = vel.linear.y * Z_GRAVITY;
+                //if vel.linear.x.abs() > 0.1 && vel.linear.y.abs() > 0.1 {
+
+                if vel.linear.x.abs() < 20. && vel.linear.y.abs() < 20. {
+                    vel.linear.x = vel.linear.x * 100.;
+                    vel.linear.y = vel.linear.y * 100.;
+                }
+
                 let force = part.as_ref().inertia() * vel;
                 part.apply_force(&force);
+                //}
+
                 i += 1;
             } else {
                 let _ = self.parts.swap_remove(i);
@@ -83,6 +91,9 @@ struct PoolTable {
     world: World<f32>,
     white_ball_handle: BodyHandle,
     ball_8_handle: BodyHandle,
+
+    cane_rotation: f32,
+    cane_force: f32,
 }
 
 impl State for PoolTable {
@@ -177,20 +188,24 @@ impl State for PoolTable {
             ball_material.clone(),
         );
 
-        let ball_object = world.rigid_body_mut(white_ball_handle).unwrap();
+        //let ball_object = world.rigid_body_mut(white_ball_handle).unwrap();
         //ball_object.set_status(BodyStatus::Dynamic);
-        let vel = Velocity::linear(5.0, 500.0);
-        ball_object.set_velocity(vel);
+        //let vel = Velocity::linear(5.0, 500.0);
+        //ball_object.set_velocity(vel);
 
         let mut z_gravity: ZGravity = ZGravity::new(Vec::new());
         z_gravity.add_body_part(white_ball_handle);
         z_gravity.add_body_part(ball_8_handle);
         world.add_force_generator(z_gravity);
+        let cane_rotation = 0.;
+        let cane_force = 5.;
 
         Ok(PoolTable {
-            world: world,
-            white_ball_handle: white_ball_handle,
-            ball_8_handle: ball_8_handle,
+            world,
+            white_ball_handle,
+            ball_8_handle,
+            cane_rotation,
+            cane_force,
         })
     }
 
@@ -340,6 +355,17 @@ impl State for PoolTable {
             Col(hole_color),
         );
 
+        let ball_object = self.world.body_part(self.ball_8_handle);
+        let pos = ball_object.position().clone();
+        let pos = pos.translation.vector;
+        //info!("Ball pos: {:?}", pos);
+        let ball_ball = Ball::new(BALL_SIZE);
+
+        window.draw(
+            &Circle::from_ball(FromNPVec(pos), ball_ball),
+            Col(Color::BLACK),
+        );
+
         //self.white_ball.draw(window);
         let ball_object = self.world.body_part(self.white_ball_handle);
         let pos = ball_object.position().clone();
@@ -352,26 +378,51 @@ impl State for PoolTable {
             Col(Color::WHITE),
         );
 
-        let ball_object = self.world.body_part(self.ball_8_handle);
-        let pos = ball_object.position().clone();
-        let pos = pos.translation.vector;
-        //info!("Ball pos: {:?}", pos);
-        let ball_ball = Ball::new(BALL_SIZE);
+        let cane_len = 90.;
+        if !self.has_force() {
+            let queue = Cuboid::new(Vector2::new(cane_len, 2.));
+            let pos = ball_object.position().clone();
+            let mut pos = pos.translation.vector;
 
-        window.draw(
-            &Circle::from_ball(FromNPVec(pos), ball_ball),
-            Col(Color::BLACK),
-        );
+            let rot = self.cane_rotation.to_radians();
+            pos.x = pos.x - (cane_len + BALL_SIZE + self.cane_force) * rot.cos();
+            pos.y = pos.y - (cane_len + BALL_SIZE + self.cane_force) * rot.sin();
+
+            window.draw_ex(
+                &Rectangle::from_cuboid(FromNPVec(pos), &queue),
+                Col(Color::RED),
+                Transform::rotate(self.cane_rotation),
+                0, // we don't really care about the Z value
+            );
+        }
 
         Ok(())
     }
 
-    fn update(&mut self, _window: &mut Window) -> Result<()> {
+    fn update(&mut self, window: &mut Window) -> Result<()> {
         self.world.step();
         for contact in self.world.contact_events() {
             // Handle contact events.
             self.handle_contact_event(contact)
         }
+
+        if window.keyboard()[Key::Right].is_down() {
+            self.cane_rotation += 2.5;
+        }
+        if window.keyboard()[Key::Left].is_down() {
+            self.cane_rotation -= 2.5;
+        }
+
+        if window.keyboard()[Key::Down].is_down() {
+            self.cane_force += 1.7;
+        }
+        if window.keyboard()[Key::Up].is_down() {
+            self.cane_force -= 1.7;
+        }
+        if self.cane_force < 0. {
+            self.cane_force = 0.;
+        }
+
         Ok(())
     }
 }
@@ -384,6 +435,20 @@ impl PoolTable {
                 event, collider1, collider2
             );
         }
+    }
+
+    fn has_force(&self) -> bool {
+        let ball_object = self.world.body_part(self.white_ball_handle);
+        if ball_object.is_active() {
+            return true;
+        }
+
+        let ball_object = self.world.body_part(self.ball_8_handle);
+        if ball_object.is_active() {
+            return true;
+        }
+
+        false
     }
 }
 
