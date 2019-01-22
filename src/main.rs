@@ -4,15 +4,21 @@ extern crate log;
 use std::vec::Vec;
 
 use nalgebra as na;
-use ncollide2d::events::ContactEvent;
-use ncollide2d::math::{Isometry as Isometry2, Vector as Vector2};
-use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
-use nphysics2d::force_generator::ForceGenerator;
-//use nphysics2d::math::Velocity;
-use nphysics2d::object::{BodyHandle, BodySet, Material};
-use nphysics2d::solver::IntegrationParameters;
-use nphysics2d::volumetric::Volumetric;
-use nphysics2d::world::World;
+
+use ncollide2d::{
+    events::ContactEvent,
+    math::{Isometry as Isometry2, Vector as Vector2},
+    shape::{Ball, Cuboid, ShapeHandle},
+};
+
+use nphysics2d::{
+    force_generator::ForceGenerator,
+    math::Velocity,
+    object::{BodyHandle, BodySet, Material},
+    solver::IntegrationParameters,
+    volumetric::Volumetric,
+    world::World,
+};
 
 use quicksilver::{
     geom::{Circle, Rectangle, Transform, Vector},
@@ -31,7 +37,8 @@ const MARGIN_LEFT: f32 = 100.;
 const BORDER: f32 = 28.;
 const BAND: f32 = 8.;
 const HOLE_SIZE: f32 = 16.;
-const Z_GRAVITY: f32 = -0.9;
+
+const Z_GRAVITY: f32 = -0.1;
 
 pub struct ZGravity {
     parts: Vec<BodyHandle>, // Body parts affected by the force generator.
@@ -57,18 +64,17 @@ impl ForceGenerator<f32> for ZGravity {
             if bodies.contains(body) {
                 let mut part = bodies.body_part_mut(body);
                 let mut vel = part.as_ref().velocity();
+
                 vel.linear.x = vel.linear.x * Z_GRAVITY;
                 vel.linear.y = vel.linear.y * Z_GRAVITY;
-                //if vel.linear.x.abs() > 0.1 && vel.linear.y.abs() > 0.1 {
-
-                if vel.linear.x.abs() < 20. && vel.linear.y.abs() < 20. {
+                if vel.linear.x.abs() < 10. && vel.linear.y.abs() < 10. {
                     vel.linear.x = vel.linear.x * 100.;
                     vel.linear.y = vel.linear.y * 100.;
                 }
 
-                let force = part.as_ref().inertia() * vel;
+                let inertia = part.as_ref().inertia();
+                let force = inertia * vel;
                 part.apply_force(&force);
-                //}
 
                 i += 1;
             } else {
@@ -100,8 +106,8 @@ impl State for PoolTable {
     fn new() -> Result<PoolTable> {
         let mut world: World<f32> = World::new();
 
-        let material: Material<f32> = Material::new(0.5, 0.);
-        let ball_material: Material<f32> = Material::new(0.94, 0.);
+        let material: Material<f32> = Material::new(0.95, 0.);
+        let ball_material: Material<f32> = Material::new(0.50, 1.);
 
         let height_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
             COLLIDER_MARGIN,
@@ -155,7 +161,7 @@ impl State for PoolTable {
 
         let ball_shape = ShapeHandle::new(Ball::new(BALL_SIZE));
         let white_pos = Isometry2::new(
-            Vector2::new(MARGIN_LEFT + WIDTH * 0.28, MARGIN_TOP + HEIGHT * 0.5),
+            Vector2::new(MARGIN_LEFT + BORDER + WIDTH * 0.25, MARGIN_TOP + BORDER + HEIGHT * 0.5),
             na::zero(),
         );
 
@@ -172,7 +178,7 @@ impl State for PoolTable {
         );
 
         let ball_8_pos = Isometry2::new(
-            Vector2::new(MARGIN_LEFT + WIDTH * 0.28 + 5., MARGIN_TOP + HEIGHT * 0.75),
+            Vector2::new(MARGIN_LEFT + BORDER + WIDTH * 0.75, MARGIN_TOP + BORDER + HEIGHT * 0.5),
             na::zero(),
         );
 
@@ -187,11 +193,6 @@ impl State for PoolTable {
             Isometry2::identity(),
             ball_material.clone(),
         );
-
-        //let ball_object = world.rigid_body_mut(white_ball_handle).unwrap();
-        //ball_object.set_status(BodyStatus::Dynamic);
-        //let vel = Velocity::linear(5.0, 500.0);
-        //ball_object.set_velocity(vel);
 
         let mut z_gravity: ZGravity = ZGravity::new(Vec::new());
         z_gravity.add_body_part(white_ball_handle);
@@ -295,18 +296,6 @@ impl State for PoolTable {
             Col(hole_color),
         );
 
-        // right hole
-        window.draw(
-            &Circle::new(
-                (
-                    MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.5,
-                    MARGIN_TOP + BORDER + BAND * 0.75 + HEIGHT / 2.,
-                ),
-                HOLE_SIZE,
-            ),
-            Col(hole_color),
-        );
-
         // bottom right hole
         window.draw(
             &Circle::new(
@@ -337,18 +326,6 @@ impl State for PoolTable {
                 (
                     MARGIN_LEFT + BORDER + BAND * 0.75,
                     MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
-                ),
-                HOLE_SIZE,
-            ),
-            Col(hole_color),
-        );
-
-        // left hole
-        window.draw(
-            &Circle::new(
-                (
-                    MARGIN_LEFT + BORDER + BAND * 0.25,
-                    MARGIN_TOP + BORDER + BAND * 0.75 + HEIGHT / 2.,
                 ),
                 HOLE_SIZE,
             ),
@@ -407,10 +384,20 @@ impl State for PoolTable {
         }
 
         if window.keyboard()[Key::Right].is_down() {
-            self.cane_rotation += 2.5;
+            if window.keyboard()[Key::LControl].is_down() {
+                self.cane_rotation += 15.;
+            }
+            else {
+                self.cane_rotation += 0.5;
+            }
         }
         if window.keyboard()[Key::Left].is_down() {
-            self.cane_rotation -= 2.5;
+            if window.keyboard()[Key::LControl].is_down() {
+                self.cane_rotation -= 15.;
+            }
+            else {
+                self.cane_rotation -= 0.5;
+            }
         }
 
         if window.keyboard()[Key::Down].is_down() {
@@ -421,6 +408,23 @@ impl State for PoolTable {
         }
         if self.cane_force < 0. {
             self.cane_force = 0.;
+        }
+        if self.cane_force > 175. {
+            self.cane_force = 175.;
+        }
+        info!("{}", self.cane_force);
+
+        if window.keyboard()[Key::Return].is_down() {
+            let rot = self.cane_rotation.to_radians();
+            let force = self.cane_force.powf(1.5);
+            let can_force_x = force * rot.cos() * 10.;
+            let can_force_y = force * rot.sin() * 10.;
+
+            info!("{} / {} => {}, {}", self.cane_force, Z_GRAVITY, can_force_x, can_force_y);
+            self.cane_force = 5.0;
+            let ball_object = self.world.rigid_body_mut(self.white_ball_handle).unwrap();
+            let vel = Velocity::linear(can_force_x, can_force_y);
+            ball_object.set_velocity(vel);
         }
 
         Ok(())
