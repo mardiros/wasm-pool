@@ -166,7 +166,10 @@ impl State for PoolTable {
 
         // bottom band
         let bound_material: Material<f32> = Material::new(0.3, 1.0);
-        let width_band_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(WIDTH / 2. - 2. * HOLE_SIZE - COLLIDER_MARGIN, COLLIDER_MARGIN)));
+        let width_band_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
+            WIDTH / 2. - 2. * HOLE_SIZE - COLLIDER_MARGIN,
+            COLLIDER_MARGIN,
+        )));
         let border_pos = Isometry2::new(Vector2::new(left, top + HEIGHT + BAND), na::zero());
         world.add_collider(
             COLLIDER_MARGIN,
@@ -176,10 +179,12 @@ impl State for PoolTable {
             bound_material.clone(),
         );
 
-
         let ball_shape = ShapeHandle::new(Ball::new(BALL_SIZE));
         let white_pos = Isometry2::new(
-            Vector2::new(MARGIN_LEFT + BORDER + WIDTH * 0.25, MARGIN_TOP + BORDER + HEIGHT * 0.5),
+            Vector2::new(
+                MARGIN_LEFT + BORDER + WIDTH * 0.25,
+                MARGIN_TOP + BORDER + HEIGHT * 0.5,
+            ),
             na::zero(),
         );
 
@@ -196,7 +201,10 @@ impl State for PoolTable {
         );
 
         let ball_8_pos = Isometry2::new(
-            Vector2::new(MARGIN_LEFT + BORDER + WIDTH * 0.75, MARGIN_TOP + BORDER + HEIGHT * 0.5),
+            Vector2::new(
+                MARGIN_LEFT + BORDER + WIDTH * 0.75,
+                MARGIN_TOP + BORDER + HEIGHT * 0.5,
+            ),
             na::zero(),
         );
 
@@ -211,7 +219,6 @@ impl State for PoolTable {
             Isometry2::identity(),
             ball_material.clone(),
         );
-
 
         let yellow_balls_handles = Vec::new();
         let red_balls_handles = Vec::new();
@@ -265,24 +272,44 @@ impl State for PoolTable {
 
         window.draw(
             &Rectangle::new(
-                (MARGIN_LEFT * WORD_SCALE_FACTOR, MARGIN_TOP * WORD_SCALE_FACTOR),
                 (
-                    WIDTH * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR * 2. + BAND * WORD_SCALE_FACTOR * 2.,
-                    HEIGHT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR * 2. + BAND * WORD_SCALE_FACTOR * 2.,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR,
+                    MARGIN_TOP * WORD_SCALE_FACTOR,
+                ),
+                (
+                    WIDTH * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR * 2.
+                        + BAND * WORD_SCALE_FACTOR * 2.,
+                    HEIGHT * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR * 2.
+                        + BAND * WORD_SCALE_FACTOR * 2.,
                 ),
             ),
             Col(border_color),
         );
         window.draw(
             &Rectangle::new(
-                (MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR, MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR),
-                (WIDTH * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 2., HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 2.),
+                (
+                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR,
+                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR,
+                ),
+                (
+                    WIDTH * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 2.,
+                    HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 2.,
+                ),
             ),
             Col(band_color),
         );
         window.draw(
             &Rectangle::new(
-                (MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR, MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR),
+                (
+                    MARGIN_LEFT * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR,
+                    MARGIN_TOP * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR,
+                ),
                 (WIDTH * WORD_SCALE_FACTOR, HEIGHT * WORD_SCALE_FACTOR),
             ),
             Col(table_color),
@@ -292,8 +319,12 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.75,
-                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.75,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.75,
+                    MARGIN_TOP * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.75,
                 ),
                 HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
@@ -304,8 +335,13 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.5 + WIDTH * WORD_SCALE_FACTOR / 2.,
-                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.5,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.5
+                        + WIDTH * WORD_SCALE_FACTOR / 2.,
+                    MARGIN_TOP * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.5,
                 ),
                 HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
@@ -316,8 +352,14 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR + WIDTH * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.25,
-                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.75,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR
+                        + WIDTH * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.25,
+                    MARGIN_TOP * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.75,
                 ),
                 HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
@@ -328,8 +370,15 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR + WIDTH * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.25,
-                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 1.25,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR
+                        + WIDTH * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.25,
+                    MARGIN_TOP * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + HEIGHT * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 1.25,
                 ),
                 HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
@@ -340,8 +389,14 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.5 + WIDTH * WORD_SCALE_FACTOR / 2.,
-                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 1.5,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.5
+                        + WIDTH * WORD_SCALE_FACTOR / 2.,
+                    MARGIN_TOP * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + HEIGHT * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 1.5,
                 ),
                 HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
@@ -352,8 +407,13 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.75,
-                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 1.25,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 0.75,
+                    MARGIN_TOP * WORD_SCALE_FACTOR
+                        + BORDER * WORD_SCALE_FACTOR
+                        + HEIGHT * WORD_SCALE_FACTOR
+                        + BAND * WORD_SCALE_FACTOR * 1.25,
                 ),
                 HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
@@ -411,22 +471,20 @@ impl State for PoolTable {
         }
 
         if self.has_force() {
-            return Ok(())
+            return Ok(());
         }
 
         if window.keyboard()[Key::Right].is_down() {
             if window.keyboard()[Key::LControl].is_down() {
                 self.cane_rotation += 15.;
-            }
-            else {
+            } else {
                 self.cane_rotation += 0.5;
             }
         }
         if window.keyboard()[Key::Left].is_down() {
             if window.keyboard()[Key::LControl].is_down() {
                 self.cane_rotation -= 15.;
-            }
-            else {
+            } else {
                 self.cane_rotation -= 0.5;
             }
         }
