@@ -524,6 +524,7 @@ impl State for PoolTable {
         }
 
         if self.has_force() {
+            self.speed_up_inactive_balls();
             return Ok(());
         }
 
@@ -581,15 +582,57 @@ impl PoolTable {
         }
     }
 
+    fn speed_up_inactive_ball(&mut self, handle: BodyHandle) {
+        let ball_object = self.world.rigid_body_mut(handle.clone()).unwrap();
+        let vel = ball_object.velocity();
+        if vel.linear.x == 0.0 && vel.linear.y == 0.0 {
+            return
+        }
+
+        if vel.linear.x.abs() < 100. && vel.linear.y.abs() < 100. {
+            ball_object.set_velocity(Velocity::linear(0.0, 0.0));
+        }
+    }
+
+    fn is_active(&self, handle: &BodyHandle) -> bool {
+        let ball_object = self.world.rigid_body(handle.clone()).unwrap();
+        return ball_object.is_active();
+    }
+
+    fn speed_up_inactive_balls(&mut self) {
+        self.speed_up_inactive_ball(self.white_ball_handle);
+        self.speed_up_inactive_ball(self.ball_8_handle);
+
+        let balls_handles: Vec<BodyHandle> = self.red_balls_handles.iter().map(|x| x.clone()).collect();
+        for ball_handle in balls_handles {
+            self.speed_up_inactive_ball(ball_handle);
+        }
+        let balls_handles: Vec<BodyHandle> = self.yellow_balls_handles.iter().map(|x| x.clone()).collect();
+        for ball_handle in balls_handles {
+            self.speed_up_inactive_ball(ball_handle);
+        }
+    }
+
     fn has_force(&self) -> bool {
-        let ball_object = self.world.body_part(self.white_ball_handle);
-        if ball_object.is_active() {
+
+        if self.is_active(&self.white_ball_handle) {
+            info!("white ball is active");
             return true;
         }
 
-        let ball_object = self.world.body_part(self.ball_8_handle);
-        if ball_object.is_active() {
+        if self.is_active(&self.ball_8_handle) {
             return true;
+        }
+
+        for ball_handle in self.red_balls_handles.iter() {
+            if self.is_active(ball_handle) {
+                return true;
+            }
+        }
+        for ball_handle in self.yellow_balls_handles.iter() {
+            if self.is_active(ball_handle) {
+                return true;
+            }
         }
 
         false
