@@ -15,7 +15,7 @@ use nphysics2d::{
     force_generator::ForceGenerator,
     math::Velocity,
     object::{BodyHandle, BodySet, Material},
-    solver::IntegrationParameters,
+    solver::{IntegrationParameters, SignoriniModel},
     volumetric::Volumetric,
     world::World,
 };
@@ -38,7 +38,9 @@ const BORDER: f32 = 280.;
 const BAND: f32 = 80.;
 const HOLE_SIZE: f32 = 160.;
 
-const Z_GRAVITY: f32 = -0.0;
+const WORD_SCALE_FACTOR: f32 = 0.1;
+
+const Z_GRAVITY: f32 = -0.42;
 
 pub struct ZGravity {
     parts: Vec<BodyHandle>, // Body parts affected by the force generator.
@@ -67,10 +69,10 @@ impl ForceGenerator<f32> for ZGravity {
 
                 vel.linear.x = vel.linear.x * Z_GRAVITY;
                 vel.linear.y = vel.linear.y * Z_GRAVITY;
-                //if vel.linear.x.abs() < 10. && vel.linear.y.abs() < 10. {
-                //    vel.linear.x = vel.linear.x * 100.;
-                //    vel.linear.y = vel.linear.y * 100.;
-                //}
+                if vel.linear.x.abs() < 10. && vel.linear.y.abs() < 10. {
+                    vel.linear.x = vel.linear.x * 100.;
+                    vel.linear.y = vel.linear.y * 100.;
+                }
 
                 let inertia = part.as_ref().inertia();
                 let force = inertia * vel;
@@ -89,7 +91,7 @@ struct FromNPVec(Vector2<f32>);
 
 impl Into<Vector> for FromNPVec {
     fn into(self) -> Vector {
-        Vector::new(self.0.x * 0.1, self.0.y * 0.1)
+        Vector::new(self.0.x * WORD_SCALE_FACTOR, self.0.y * WORD_SCALE_FACTOR)
     }
 }
 
@@ -97,6 +99,9 @@ struct PoolTable {
     world: World<f32>,
     white_ball_handle: BodyHandle,
     ball_8_handle: BodyHandle,
+
+    yellow_balls_handles: Vec<BodyHandle>,
+    red_balls_handles: Vec<BodyHandle>,
 
     cane_rotation: f32,
     cane_force: f32,
@@ -159,6 +164,19 @@ impl State for PoolTable {
             material.clone(),
         );
 
+        // bottom band
+        let bound_material: Material<f32> = Material::new(0.3, 1.0);
+        let width_band_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(WIDTH / 2. - 2. * HOLE_SIZE - COLLIDER_MARGIN, COLLIDER_MARGIN)));
+        let border_pos = Isometry2::new(Vector2::new(left, top + HEIGHT + BAND), na::zero());
+        world.add_collider(
+            COLLIDER_MARGIN,
+            width_band_shape.clone(),
+            BodyHandle::ground(),
+            border_pos,
+            bound_material.clone(),
+        );
+
+
         let ball_shape = ShapeHandle::new(Ball::new(BALL_SIZE));
         let white_pos = Isometry2::new(
             Vector2::new(MARGIN_LEFT + BORDER + WIDTH * 0.25, MARGIN_TOP + BORDER + HEIGHT * 0.5),
@@ -194,10 +212,18 @@ impl State for PoolTable {
             ball_material.clone(),
         );
 
+
+        let yellow_balls_handles = Vec::new();
+        let red_balls_handles = Vec::new();
+
         let mut z_gravity: ZGravity = ZGravity::new(Vec::new());
         z_gravity.add_body_part(white_ball_handle);
         z_gravity.add_body_part(ball_8_handle);
         world.add_force_generator(z_gravity);
+
+        let model: SignoriniModel<f32> = SignoriniModel::new();
+        world.set_contact_model(model);
+
         let cane_rotation = 0.;
         let cane_force = 5.;
 
@@ -205,6 +231,8 @@ impl State for PoolTable {
             world,
             white_ball_handle,
             ball_8_handle,
+            yellow_balls_handles,
+            red_balls_handles,
             cane_rotation,
             cane_force,
         })
@@ -237,25 +265,25 @@ impl State for PoolTable {
 
         window.draw(
             &Rectangle::new(
-                (MARGIN_LEFT * 0.1, MARGIN_TOP * 0.1),
+                (MARGIN_LEFT * WORD_SCALE_FACTOR, MARGIN_TOP * WORD_SCALE_FACTOR),
                 (
-                    WIDTH * 0.1 + BORDER * 0.1 * 2. + BAND * 0.1 * 2.,
-                    HEIGHT * 0.1 + BORDER * 0.1 * 2. + BAND * 0.1 * 2.,
+                    WIDTH * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR * 2. + BAND * WORD_SCALE_FACTOR * 2.,
+                    HEIGHT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR * 2. + BAND * WORD_SCALE_FACTOR * 2.,
                 ),
             ),
             Col(border_color),
         );
         window.draw(
             &Rectangle::new(
-                (MARGIN_LEFT * 0.1 + BORDER * 0.1, MARGIN_TOP * 0.1 + BORDER * 0.1),
-                (WIDTH * 0.1 + BAND * 0.1 * 2., HEIGHT * 0.1 + BAND * 0.1 * 2.),
+                (MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR, MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR),
+                (WIDTH * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 2., HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 2.),
             ),
             Col(band_color),
         );
         window.draw(
             &Rectangle::new(
-                (MARGIN_LEFT * 0.1 + BORDER * 0.1 + BAND * 0.1, MARGIN_TOP * 0.1 + BORDER * 0.1 + BAND * 0.1),
-                (WIDTH * 0.1, HEIGHT * 0.1),
+                (MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR, MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR),
+                (WIDTH * WORD_SCALE_FACTOR, HEIGHT * WORD_SCALE_FACTOR),
             ),
             Col(table_color),
         );
@@ -264,10 +292,10 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * 0.1 + BORDER * 0.1 + BAND * 0.1 * 0.75,
-                    MARGIN_TOP * 0.1 + BORDER * 0.1 + BAND * 0.1 * 0.75,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.75,
+                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.75,
                 ),
-                HOLE_SIZE * 0.1,
+                HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
             Col(hole_color),
         );
@@ -276,10 +304,10 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * 0.1 + BORDER * 0.1 + BAND * 0.1 * 0.5 + WIDTH * 0.1 / 2.,
-                    MARGIN_TOP * 0.1 + BORDER * 0.1 + BAND * 0.1 * 0.5,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.5 + WIDTH * WORD_SCALE_FACTOR / 2.,
+                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.5,
                 ),
-                HOLE_SIZE * 0.1,
+                HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
             Col(hole_color),
         );
@@ -288,10 +316,10 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * 0.1 + BORDER * 0.1 + BAND * 0.1 + WIDTH * 0.1 + BAND * 0.1 * 0.25,
-                    MARGIN_TOP * 0.1 + BORDER * 0.1 + BAND * 0.1 * 0.75,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR + WIDTH * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.25,
+                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.75,
                 ),
-                HOLE_SIZE * 0.1,
+                HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
             Col(hole_color),
         );
@@ -300,10 +328,10 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * 0.1 + BORDER * 0.1 + BAND * 0.1 + WIDTH * 0.1 + BAND * 0.1 * 0.25,
-                    MARGIN_TOP * 0.1 + BORDER * 0.1 + HEIGHT * 0.1 + BAND * 0.1 * 1.25,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR + WIDTH * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.25,
+                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 1.25,
                 ),
-                HOLE_SIZE * 0.1,
+                HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
             Col(hole_color),
         );
@@ -312,10 +340,10 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * 0.1 + BORDER * 0.1 + BAND * 0.1 * 0.5 + WIDTH * 0.1 / 2.,
-                    MARGIN_TOP * 0.1 + BORDER * 0.1 + HEIGHT * 0.1 + BAND * 0.1 * 1.5,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.5 + WIDTH * WORD_SCALE_FACTOR / 2.,
+                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 1.5,
                 ),
-                HOLE_SIZE * 0.1,
+                HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
             Col(hole_color),
         );
@@ -324,10 +352,10 @@ impl State for PoolTable {
         window.draw(
             &Circle::new(
                 (
-                    MARGIN_LEFT * 0.1 + BORDER * 0.1 + BAND * 0.1 * 0.75,
-                    MARGIN_TOP * 0.1 + BORDER * 0.1 + HEIGHT * 0.1 + BAND * 0.1 * 1.25,
+                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 0.75,
+                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR + HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 1.25,
                 ),
-                HOLE_SIZE * 0.1,
+                HOLE_SIZE * WORD_SCALE_FACTOR,
             ),
             Col(hole_color),
         );
@@ -336,7 +364,7 @@ impl State for PoolTable {
         let pos = ball_object.position().clone();
         let pos = pos.translation.vector;
         //info!("Ball pos: {:?}", pos);
-        let ball_ball = Ball::new(BALL_SIZE * 0.1);
+        let ball_ball = Ball::new(BALL_SIZE * WORD_SCALE_FACTOR);
 
         window.draw(
             &Circle::from_ball(FromNPVec(pos), ball_ball),
@@ -348,7 +376,7 @@ impl State for PoolTable {
         let pos = ball_object.position().clone();
         let pos = pos.translation.vector;
         //info!("Ball pos: {:?}", pos);
-        let ball_ball = Ball::new(BALL_SIZE * 0.1);
+        let ball_ball = Ball::new(BALL_SIZE * WORD_SCALE_FACTOR);
 
         window.draw(
             &Circle::from_ball(FromNPVec(pos), ball_ball),
@@ -357,15 +385,13 @@ impl State for PoolTable {
 
         let cane_len = 900.;
         if !self.has_force() {
-            let queue = Cuboid::new(Vector2::new(cane_len * 0.1, 2.));
+            let queue = Cuboid::new(Vector2::new(cane_len * WORD_SCALE_FACTOR, 2.));
             let pos = ball_object.position().clone();
             let mut pos = pos.translation.vector;
 
             let rot = self.cane_rotation.to_radians();
-            info!("pos: {:?} ", pos);
-            pos.x = pos.x - (cane_len + BALL_SIZE + self.cane_force) * rot.cos();
-            pos.y = pos.y - (cane_len + BALL_SIZE + self.cane_force) * rot.sin();
-            info!("cane pos: {:?} {:?}", pos, self.cane_rotation);
+            pos.x = pos.x - (cane_len + BALL_SIZE + (self.cane_force * 4.)) * rot.cos();
+            pos.y = pos.y - (cane_len + BALL_SIZE + (self.cane_force * 4.)) * rot.sin();
             window.draw_ex(
                 &Rectangle::from_cuboid(FromNPVec(pos), &queue),
                 Col(Color::RED),
@@ -406,16 +432,16 @@ impl State for PoolTable {
         }
 
         if window.keyboard()[Key::Down].is_down() {
-            self.cane_force += 150.;
+            self.cane_force += 10.;
         }
         if window.keyboard()[Key::Up].is_down() {
-            self.cane_force -= 150.;
+            self.cane_force -= 10.;
         }
         if self.cane_force < 0. {
             self.cane_force = 0.;
         }
-        if self.cane_force > 1500. {
-            self.cane_force = 1500.;
+        if self.cane_force > 350. {
+            self.cane_force = 350.;
         }
 
         if window.keyboard()[Key::Return].is_down() {
@@ -424,7 +450,6 @@ impl State for PoolTable {
             let can_force_x = force * rot.cos();
             let can_force_y = force * rot.sin();
 
-            info!("{} / {} => {}, {}", self.cane_force, Z_GRAVITY, can_force_x, can_force_y);
             self.cane_force = 5.0;
             let ball_object = self.world.rigid_body_mut(self.white_ball_handle).unwrap();
             let vel = Velocity::linear(can_force_x, can_force_y);
