@@ -40,7 +40,7 @@ const HOLE_SIZE: f32 = 160.;
 
 const WORD_SCALE_FACTOR: f32 = 0.1;
 
-const Z_GRAVITY: f32 = -0.42;
+const Z_GRAVITY: f32 = -0.93;
 
 pub struct ZGravity {
     parts: Vec<BodyHandle>, // Body parts affected by the force generator.
@@ -58,6 +58,36 @@ impl ZGravity {
     }
 }
 
+fn ball_material() -> Material<f32> {
+    Material::new(0.50, 1.)
+}
+
+fn ball_shape() -> ShapeHandle<f32> {
+    ShapeHandle::new(Ball::new(BALL_SIZE))
+}
+
+fn add_ball(x: f32, y: f32, z_gravity: &mut ZGravity, world: &mut World<f32>) -> BodyHandle {
+    let ball_shape = ball_shape();
+    let ball_material = ball_material();
+
+    let ball_8_pos = Isometry2::new(Vector2::new(x, y), na::zero());
+
+    let inertia = ball_shape.inertia(1.);
+    let center_of_mass = ball_shape.center_of_mass();
+    let ball_handle = world.add_rigid_body(ball_8_pos, inertia, center_of_mass);
+
+    z_gravity.add_body_part(ball_handle);
+
+    world.add_collider(
+        COLLIDER_MARGIN,
+        ball_shape.clone(),
+        ball_handle,
+        Isometry2::identity(),
+        ball_material.clone(),
+    );
+    ball_handle
+}
+
 impl ForceGenerator<f32> for ZGravity {
     fn apply(&mut self, _: &IntegrationParameters<f32>, bodies: &mut BodySet<f32>) -> bool {
         let mut i = 0;
@@ -69,10 +99,6 @@ impl ForceGenerator<f32> for ZGravity {
 
                 vel.linear.x = vel.linear.x * Z_GRAVITY;
                 vel.linear.y = vel.linear.y * Z_GRAVITY;
-                if vel.linear.x.abs() < 10. && vel.linear.y.abs() < 10. {
-                    vel.linear.x = vel.linear.x * 100.;
-                    vel.linear.y = vel.linear.y * 100.;
-                }
 
                 let inertia = part.as_ref().inertia();
                 let force = inertia * vel;
@@ -112,7 +138,6 @@ impl State for PoolTable {
         let mut world: World<f32> = World::new();
 
         let material: Material<f32> = Material::new(0.95, 0.);
-        let ball_material: Material<f32> = Material::new(0.50, 1.);
 
         let height_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
             COLLIDER_MARGIN,
@@ -179,57 +204,97 @@ impl State for PoolTable {
             bound_material.clone(),
         );
 
-        let ball_shape = ShapeHandle::new(Ball::new(BALL_SIZE));
-        let white_pos = Isometry2::new(
-            Vector2::new(
-                MARGIN_LEFT + BORDER + WIDTH * 0.25,
-                MARGIN_TOP + BORDER + HEIGHT * 0.5,
-            ),
-            na::zero(),
-        );
-
-        let inertia = ball_shape.inertia(1.);
-        let center_of_mass = ball_shape.center_of_mass();
-        let white_ball_handle = world.add_rigid_body(white_pos, inertia, center_of_mass);
-
-        world.add_collider(
-            COLLIDER_MARGIN,
-            ball_shape.clone(),
-            white_ball_handle,
-            Isometry2::identity(),
-            ball_material.clone(),
-        );
-
-        let ball_8_pos = Isometry2::new(
-            Vector2::new(
-                MARGIN_LEFT + BORDER + WIDTH * 0.75,
-                MARGIN_TOP + BORDER + HEIGHT * 0.5,
-            ),
-            na::zero(),
-        );
-
-        let inertia = ball_shape.inertia(1.);
-        let center_of_mass = ball_shape.center_of_mass();
-        let ball_8_handle = world.add_rigid_body(ball_8_pos, inertia, center_of_mass);
-
-        world.add_collider(
-            COLLIDER_MARGIN,
-            ball_shape.clone(),
-            ball_8_handle,
-            Isometry2::identity(),
-            ball_material.clone(),
-        );
-
-        let yellow_balls_handles = Vec::new();
-        let red_balls_handles = Vec::new();
-
         let mut z_gravity: ZGravity = ZGravity::new(Vec::new());
-        z_gravity.add_body_part(white_ball_handle);
-        z_gravity.add_body_part(ball_8_handle);
+
+        let center_y = MARGIN_TOP + BORDER + HEIGHT * 0.5;
+        let white_ball_handle = add_ball(MARGIN_LEFT + BORDER + WIDTH * 0.25, center_y, &mut z_gravity, &mut world);
+
+        let center_x = MARGIN_LEFT + BORDER + WIDTH * 0.75;
+
+        //     r
+        let ball_r1 = add_ball(center_x - 4. * BALL_SIZE, center_y,&mut z_gravity,  &mut world);
+
+        //    y r  ( right to left )
+
+        let ball_r2 = add_ball(
+            center_x - 2. * BALL_SIZE,
+            center_y - 1. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+
+        let ball_y1 = add_ball(
+            center_x - 2. * BALL_SIZE,
+            center_y + 1. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+
+        //   r b y  ( right to left )
+
+        let ball_y2 = add_ball(center_x, center_y - 2. * BALL_SIZE,&mut z_gravity,  &mut world);
+
+        let ball_8_handle = add_ball(center_x, center_y,&mut z_gravity,  &mut world);
+
+        let ball_r3 = add_ball(center_x, center_y + 2. * BALL_SIZE,&mut z_gravity,  &mut world);
+
+        //  y r y r  ( right to left )
+        let ball_r4 = add_ball(
+            center_x + 2. * BALL_SIZE,
+            center_y - 3. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+        let ball_y3 = add_ball(
+            center_x + 2. * BALL_SIZE,
+            center_y - 1. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+        let ball_r5 = add_ball(
+            center_x + 2. * BALL_SIZE,
+            center_y + 1. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+        let ball_y4 = add_ball(
+            center_x + 2. * BALL_SIZE,
+            center_y + 3. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+
+        // r y r y y ( right to left )
+        let ball_y5 = add_ball(
+            center_x + 4. * BALL_SIZE,
+            center_y - 4. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+        let ball_y6 = add_ball(
+            center_x + 4. * BALL_SIZE,
+            center_y - 2. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+        let ball_r6 = add_ball(center_x + 4. * BALL_SIZE, center_y,&mut z_gravity,  &mut world);
+        let ball_y7 = add_ball(
+            center_x + 4. * BALL_SIZE,
+            center_y + 2. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+        let ball_r7 = add_ball(
+            center_x + 4. * BALL_SIZE,
+            center_y + 4. * BALL_SIZE,
+           &mut z_gravity,  &mut world,
+        );
+
+        let red_balls_handles = vec![
+            ball_r1, ball_r2, ball_r3, ball_r4, ball_r5, ball_r6, ball_r7,
+        ];
+        let yellow_balls_handles = vec![
+            ball_y1, ball_y2, ball_y3, ball_y4, ball_y5, ball_y6, ball_y7,
+        ];
+
         world.add_force_generator(z_gravity);
 
         let model: SignoriniModel<f32> = SignoriniModel::new();
         world.set_contact_model(model);
+
+        let param = world.integration_parameters_mut();
+        param.dt = 1. / 120.;
 
         let cane_rotation = 0.;
         let cane_force = 5.;
@@ -420,38 +485,26 @@ impl State for PoolTable {
             Col(hole_color),
         );
 
-        let ball_object = self.world.body_part(self.ball_8_handle);
-        let pos = ball_object.position().clone();
-        let pos = pos.translation.vector;
-        //info!("Ball pos: {:?}", pos);
-        let ball_ball = Ball::new(BALL_SIZE * WORD_SCALE_FACTOR);
+        self.draw_ball(window, &self.ball_8_handle, &Color::BLACK);
+        self.draw_ball(window, &self.white_ball_handle, &Color::WHITE);
 
-        window.draw(
-            &Circle::from_ball(FromNPVec(pos), ball_ball),
-            Col(Color::BLACK),
-        );
-
-        //self.white_ball.draw(window);
-        let ball_object = self.world.body_part(self.white_ball_handle);
-        let pos = ball_object.position().clone();
-        let pos = pos.translation.vector;
-        //info!("Ball pos: {:?}", pos);
-        let ball_ball = Ball::new(BALL_SIZE * WORD_SCALE_FACTOR);
-
-        window.draw(
-            &Circle::from_ball(FromNPVec(pos), ball_ball),
-            Col(Color::WHITE),
-        );
+        for ball_handle in self.red_balls_handles.iter() {
+            self.draw_ball(window, ball_handle, &Color::RED);
+        }
+        for ball_handle in self.yellow_balls_handles.iter() {
+            self.draw_ball(window, ball_handle, &Color::YELLOW);
+        }
 
         let cane_len = 900.;
         if !self.has_force() {
             let queue = Cuboid::new(Vector2::new(cane_len * WORD_SCALE_FACTOR, 2.));
+            let ball_object = self.world.body_part(self.white_ball_handle);
             let pos = ball_object.position().clone();
             let mut pos = pos.translation.vector;
 
             let rot = self.cane_rotation.to_radians();
-            pos.x = pos.x - (cane_len + BALL_SIZE + (self.cane_force * 4.)) * rot.cos();
-            pos.y = pos.y - (cane_len + BALL_SIZE + (self.cane_force * 4.)) * rot.sin();
+            pos.x = pos.x - (cane_len + BALL_SIZE + (self.cane_force)) * rot.cos();
+            pos.y = pos.y - (cane_len + BALL_SIZE + (self.cane_force)) * rot.sin();
             window.draw_ex(
                 &Rectangle::from_cuboid(FromNPVec(pos), &queue),
                 Col(Color::RED),
@@ -490,16 +543,16 @@ impl State for PoolTable {
         }
 
         if window.keyboard()[Key::Down].is_down() {
-            self.cane_force += 10.;
+            self.cane_force += 50.;
         }
         if window.keyboard()[Key::Up].is_down() {
-            self.cane_force -= 10.;
+            self.cane_force -= 50.;
         }
         if self.cane_force < 0. {
             self.cane_force = 0.;
         }
-        if self.cane_force > 350. {
-            self.cane_force = 350.;
+        if self.cane_force > 1350. {
+            self.cane_force = 1350.;
         }
 
         if window.keyboard()[Key::Return].is_down() {
@@ -540,6 +593,20 @@ impl PoolTable {
         }
 
         false
+    }
+
+    fn draw_ball(&self, window: &mut Window, handle: &BodyHandle, color: &Color) {
+        //self.white_ball.draw(window);
+        let ball_object = self.world.body_part(handle.clone());
+        let pos = ball_object.position().clone();
+        let pos = pos.translation.vector;
+        //info!("Ball pos: {:?}", pos);
+        let ball_ball = Ball::new(BALL_SIZE * WORD_SCALE_FACTOR);
+
+        window.draw(
+            &Circle::from_ball(FromNPVec(pos), ball_ball),
+            Col(color.clone()),
+        );
     }
 }
 
