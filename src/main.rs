@@ -40,7 +40,7 @@ const HOLE_SIZE: f32 = 160.;
 
 const WORD_SCALE_FACTOR: f32 = 0.1;
 
-const Z_GRAVITY: f32 = -0.93;
+const Z_GRAVITY: f32 = -1.0;
 
 pub struct ZGravity {
     parts: Vec<BodyHandle>, // Body parts affected by the force generator.
@@ -123,6 +123,8 @@ impl Into<Vector> for FromNPVec {
 
 struct PoolTable {
     world: World<f32>,
+    holes: Vec<BodyHandle>,
+
     white_ball_handle: BodyHandle,
     ball_8_handle: BodyHandle,
 
@@ -137,7 +139,7 @@ impl State for PoolTable {
     fn new() -> Result<PoolTable> {
         let mut world: World<f32> = World::new();
 
-        let material: Material<f32> = Material::new(0.95, 0.);
+        let bound_material: Material<f32> = Material::new(0.95, 0.);
 
         let height_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
             COLLIDER_MARGIN,
@@ -157,7 +159,7 @@ impl State for PoolTable {
             height_border_shape.clone(),
             BodyHandle::ground(),
             border_pos,
-            material.clone(),
+            bound_material.clone(),
         );
 
         // top
@@ -167,7 +169,7 @@ impl State for PoolTable {
             width_border_shape.clone(),
             BodyHandle::ground(),
             border_pos,
-            material.clone(),
+            bound_material.clone(),
         );
 
         // right
@@ -177,7 +179,7 @@ impl State for PoolTable {
             height_border_shape.clone(),
             BodyHandle::ground(),
             border_pos,
-            material.clone(),
+            bound_material.clone(),
         );
         // bottom
         let border_pos = Isometry2::new(Vector2::new(left, top + HEIGHT + 2. * BAND), na::zero());
@@ -186,13 +188,12 @@ impl State for PoolTable {
             width_border_shape.clone(),
             BodyHandle::ground(),
             border_pos,
-            material.clone(),
+            bound_material.clone(),
         );
 
         // bottom band
-        let bound_material: Material<f32> = Material::new(0.3, 1.0);
         let width_band_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
-            WIDTH / 2. - 2. * HOLE_SIZE - COLLIDER_MARGIN,
+            WIDTH * 0.5 - 2. * HOLE_SIZE - COLLIDER_MARGIN,
             COLLIDER_MARGIN,
         )));
         let border_pos = Isometry2::new(Vector2::new(left, top + HEIGHT + BAND), na::zero());
@@ -207,78 +208,113 @@ impl State for PoolTable {
         let mut z_gravity: ZGravity = ZGravity::new(Vec::new());
 
         let center_y = MARGIN_TOP + BORDER + HEIGHT * 0.5;
-        let white_ball_handle = add_ball(MARGIN_LEFT + BORDER + WIDTH * 0.25, center_y, &mut z_gravity, &mut world);
+        let white_ball_handle = add_ball(
+            MARGIN_LEFT + BORDER + WIDTH * 0.25,
+            center_y,
+            &mut z_gravity,
+            &mut world,
+        );
 
         let center_x = MARGIN_LEFT + BORDER + WIDTH * 0.75;
 
         //     r
-        let ball_r1 = add_ball(center_x - 4. * BALL_SIZE, center_y,&mut z_gravity,  &mut world);
+        let ball_r1 = add_ball(
+            center_x - 4. * BALL_SIZE,
+            center_y,
+            &mut z_gravity,
+            &mut world,
+        );
 
         //    y r  ( right to left )
 
         let ball_r2 = add_ball(
             center_x - 2. * BALL_SIZE,
             center_y - 1. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
 
         let ball_y1 = add_ball(
             center_x - 2. * BALL_SIZE,
             center_y + 1. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
 
         //   r b y  ( right to left )
 
-        let ball_y2 = add_ball(center_x, center_y - 2. * BALL_SIZE,&mut z_gravity,  &mut world);
+        let ball_y2 = add_ball(
+            center_x,
+            center_y - 2. * BALL_SIZE,
+            &mut z_gravity,
+            &mut world,
+        );
 
-        let ball_8_handle = add_ball(center_x, center_y,&mut z_gravity,  &mut world);
+        let ball_8_handle = add_ball(center_x, center_y, &mut z_gravity, &mut world);
 
-        let ball_r3 = add_ball(center_x, center_y + 2. * BALL_SIZE,&mut z_gravity,  &mut world);
+        let ball_r3 = add_ball(
+            center_x,
+            center_y + 2. * BALL_SIZE,
+            &mut z_gravity,
+            &mut world,
+        );
 
         //  y r y r  ( right to left )
         let ball_r4 = add_ball(
             center_x + 2. * BALL_SIZE,
             center_y - 3. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
         let ball_y3 = add_ball(
             center_x + 2. * BALL_SIZE,
             center_y - 1. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
         let ball_r5 = add_ball(
             center_x + 2. * BALL_SIZE,
             center_y + 1. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
         let ball_y4 = add_ball(
             center_x + 2. * BALL_SIZE,
             center_y + 3. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
 
         // r y r y y ( right to left )
         let ball_y5 = add_ball(
             center_x + 4. * BALL_SIZE,
             center_y - 4. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
         let ball_y6 = add_ball(
             center_x + 4. * BALL_SIZE,
             center_y - 2. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
-        let ball_r6 = add_ball(center_x + 4. * BALL_SIZE, center_y,&mut z_gravity,  &mut world);
+        let ball_r6 = add_ball(
+            center_x + 4. * BALL_SIZE,
+            center_y,
+            &mut z_gravity,
+            &mut world,
+        );
         let ball_y7 = add_ball(
             center_x + 4. * BALL_SIZE,
             center_y + 2. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
         let ball_r7 = add_ball(
             center_x + 4. * BALL_SIZE,
             center_y + 4. * BALL_SIZE,
-           &mut z_gravity,  &mut world,
+            &mut z_gravity,
+            &mut world,
         );
 
         let red_balls_handles = vec![
@@ -286,6 +322,111 @@ impl State for PoolTable {
         ];
         let yellow_balls_handles = vec![
             ball_y1, ball_y2, ball_y3, ball_y4, ball_y5, ball_y6, ball_y7,
+        ];
+
+        // add hole sensors
+        //
+        let hole_shape: ShapeHandle<f32> = ShapeHandle::new(Ball::new(BALL_SIZE * 0.5));
+        let inertia = hole_shape.inertia(1.0);
+        let center_of_mass = hole_shape.center_of_mass();
+
+        // top left
+        let pos = Vector2::new(
+            MARGIN_LEFT + BORDER + BAND * 0.75,
+            MARGIN_TOP + BORDER + BAND * 0.75,
+        );
+        let pos = Isometry2::new(pos, na::zero());
+        let top_left_hole = world.add_rigid_body(pos, inertia, center_of_mass);
+        world.add_collider(
+            COLLIDER_MARGIN,
+            hole_shape.clone(),
+            top_left_hole,
+            Isometry2::identity(),
+            Material::default(),
+        );
+
+        // top
+        let pos = Vector2::new(
+            MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH * 0.5,
+            MARGIN_TOP + BORDER + BAND * 0.5,
+        );
+        let pos = Isometry2::new(pos, na::zero());
+        let top_hole = world.add_rigid_body(pos, inertia, center_of_mass);
+        world.add_collider(
+            COLLIDER_MARGIN,
+            hole_shape.clone(),
+            top_hole,
+            Isometry2::identity(),
+            Material::default(),
+        );
+
+        // top right
+        let pos = Vector2::new(
+            MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
+            MARGIN_TOP + BORDER + BAND, // * 0.75,
+        );
+        let pos = Isometry2::new(pos, na::zero());
+        let top_right_hole = world.add_rigid_body(pos, inertia, center_of_mass);
+        world.add_collider(
+            COLLIDER_MARGIN,
+            hole_shape.clone(),
+            top_right_hole,
+            Isometry2::identity(),
+            Material::default(),
+        );
+
+        // bottom right hole
+        let pos = Vector2::new(
+            MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
+            MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
+        );
+        let pos = Isometry2::new(pos, na::zero());
+        let bottom_right_hole = world.add_rigid_body(pos, inertia, center_of_mass);
+        world.add_collider(
+            COLLIDER_MARGIN,
+            hole_shape.clone(),
+            bottom_right_hole,
+            Isometry2::identity(),
+            Material::default(),
+        );
+
+        // bottom hole
+        let pos = Vector2::new(
+            MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH * 0.5,
+            MARGIN_TOP + BORDER + HEIGHT + BAND * 1.5,
+        );
+        let pos = Isometry2::new(pos, na::zero());
+        let bottom_hole = world.add_rigid_body(pos, inertia, center_of_mass);
+        world.add_collider(
+            COLLIDER_MARGIN,
+            hole_shape.clone(),
+            bottom_hole,
+            Isometry2::identity(),
+            Material::default(),
+        );
+
+        // bottom left hole
+        let pos = Vector2::new(
+            MARGIN_LEFT + BORDER + BAND * 0.75,
+            MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
+        );
+        let pos = Isometry2::new(pos, na::zero());
+        let bottom_left_hole = world.add_rigid_body(pos, inertia, center_of_mass);
+        world.add_collider(
+            COLLIDER_MARGIN,
+            hole_shape.clone(),
+            bottom_left_hole,
+            Isometry2::identity(),
+            Material::default(),
+        );
+
+        let holes = vec![
+            top_left_hole,
+            top_hole,
+            top_right_hole,
+            bottom_left_hole,
+            bottom_hole,
+            bottom_right_hole,
         ];
 
         world.add_force_generator(z_gravity);
@@ -301,6 +442,7 @@ impl State for PoolTable {
 
         Ok(PoolTable {
             world,
+            holes,
             white_ball_handle,
             ball_8_handle,
             yellow_balls_handles,
@@ -403,7 +545,7 @@ impl State for PoolTable {
                     MARGIN_LEFT * WORD_SCALE_FACTOR
                         + BORDER * WORD_SCALE_FACTOR
                         + BAND * WORD_SCALE_FACTOR * 0.5
-                        + WIDTH * WORD_SCALE_FACTOR / 2.,
+                        + WIDTH * WORD_SCALE_FACTOR * 0.5,
                     MARGIN_TOP * WORD_SCALE_FACTOR
                         + BORDER * WORD_SCALE_FACTOR
                         + BAND * WORD_SCALE_FACTOR * 0.5,
@@ -457,7 +599,7 @@ impl State for PoolTable {
                     MARGIN_LEFT * WORD_SCALE_FACTOR
                         + BORDER * WORD_SCALE_FACTOR
                         + BAND * WORD_SCALE_FACTOR * 0.5
-                        + WIDTH * WORD_SCALE_FACTOR / 2.,
+                        + WIDTH * WORD_SCALE_FACTOR * 0.5,
                     MARGIN_TOP * WORD_SCALE_FACTOR
                         + BORDER * WORD_SCALE_FACTOR
                         + HEIGHT * WORD_SCALE_FACTOR
@@ -511,6 +653,20 @@ impl State for PoolTable {
                 Transform::rotate(self.cane_rotation),
                 0, // we don't really care about the Z value
             );
+
+            let queue = Cuboid::new(Vector2::new(cane_len * WORD_SCALE_FACTOR, 0.25));
+            let pos = ball_object.position().clone();
+            let mut pos = pos.translation.vector;
+
+            let rot = self.cane_rotation.to_radians();
+            pos.x = pos.x + (cane_len + BALL_SIZE + (self.cane_force)) * rot.cos();
+            pos.y = pos.y + (cane_len + BALL_SIZE + (self.cane_force)) * rot.sin();
+            window.draw_ex(
+                &Rectangle::from_cuboid(FromNPVec(pos), &queue),
+                Col(Color::BLUE),
+                Transform::rotate(self.cane_rotation),
+                0, // we don't really care about the Z value
+            );
         }
 
         Ok(())
@@ -518,9 +674,15 @@ impl State for PoolTable {
 
     fn update(&mut self, window: &mut Window) -> Result<()> {
         self.world.step();
+        let mut balls = vec![];
         for contact in self.world.contact_events() {
             // Handle contact events.
-            self.handle_contact_event(contact)
+            if let Some(ball) = self.handle_contact_event(contact) {
+                balls.push(ball);
+            }
+        }
+        for ball in balls {
+            self.drop_ball(&ball);
         }
 
         if self.has_force() {
@@ -529,15 +691,23 @@ impl State for PoolTable {
         }
 
         if window.keyboard()[Key::Right].is_down() {
-            if window.keyboard()[Key::LControl].is_down() {
-                self.cane_rotation += 15.;
+            if window.keyboard()[Key::LControl].is_down()
+                || window.keyboard()[Key::RControl].is_down()
+            {
+                self.cane_rotation += 5.;
+            } else if window.keyboard()[Key::LAlt].is_down() {
+                self.cane_rotation += 0.1;
             } else {
                 self.cane_rotation += 0.5;
             }
         }
         if window.keyboard()[Key::Left].is_down() {
-            if window.keyboard()[Key::LControl].is_down() {
-                self.cane_rotation -= 15.;
+            if window.keyboard()[Key::LControl].is_down()
+                || window.keyboard()[Key::RControl].is_down()
+            {
+                self.cane_rotation -= 5.;
+            } else if window.keyboard()[Key::LAlt].is_down() {
+                self.cane_rotation -= 0.1;
             } else {
                 self.cane_rotation -= 0.5;
             }
@@ -573,23 +743,55 @@ impl State for PoolTable {
 }
 
 impl PoolTable {
-    fn handle_contact_event(&self, event: &ContactEvent) {
-        if let &ContactEvent::Started(collider1, collider2) = event {
-            info!(
-                "!!! handle_contact_event {:?} {:?} {:?}",
-                event, collider1, collider2
-            );
+    fn drop_ball(&mut self, ball: &BodyHandle) {
+        if ball == &self.white_ball_handle {
+            info!("!!! drop the white ball",);
+        } else if ball == &self.ball_8_handle {
+            info!("!!! drop the 8 ball",);
+        } else if self.red_balls_handles.contains(ball) {
+            info!("!!! drop a red ball",);
+            self.red_balls_handles = self
+                .red_balls_handles
+                .iter()
+                .filter(|b| b != &ball)
+                .map(|b| b.clone())
+                .collect();
+            self.world.remove_bodies(&[ball.clone()]);
+        } else if self.yellow_balls_handles.contains(ball) {
+            info!("!!! drop a yellow ball");
+            self.yellow_balls_handles = self
+                .yellow_balls_handles
+                .iter()
+                .filter(|b| b != &ball)
+                .map(|b| b.clone())
+                .collect();
+            self.world.remove_bodies(&[ball.clone()]);
         }
+    }
+
+    fn handle_contact_event(&self, event: &ContactEvent) -> Option<BodyHandle> {
+        if let &ContactEvent::Started(collider1, collider2) = event {
+            let body1 = self.world.collider(collider1).unwrap().data().body();
+            let body2 = self.world.collider(collider2).unwrap().data().body();
+
+            if self.holes.contains(&body1) {
+                return Some(body2);
+            }
+            if self.holes.contains(&body2) {
+                return Some(body1);
+            }
+        }
+        None
     }
 
     fn speed_up_inactive_ball(&mut self, handle: BodyHandle) {
         let ball_object = self.world.rigid_body_mut(handle.clone()).unwrap();
         let vel = ball_object.velocity();
         if vel.linear.x == 0.0 && vel.linear.y == 0.0 {
-            return
+            return;
         }
 
-        if vel.linear.x.abs() < 100. && vel.linear.y.abs() < 100. {
+        if vel.linear.x.abs() < 150. && vel.linear.y.abs() < 150. {
             ball_object.set_velocity(Velocity::linear(0.0, 0.0));
         }
     }
@@ -603,20 +805,23 @@ impl PoolTable {
         self.speed_up_inactive_ball(self.white_ball_handle);
         self.speed_up_inactive_ball(self.ball_8_handle);
 
-        let balls_handles: Vec<BodyHandle> = self.red_balls_handles.iter().map(|x| x.clone()).collect();
+        let balls_handles: Vec<BodyHandle> =
+            self.red_balls_handles.iter().map(|x| x.clone()).collect();
         for ball_handle in balls_handles {
             self.speed_up_inactive_ball(ball_handle);
         }
-        let balls_handles: Vec<BodyHandle> = self.yellow_balls_handles.iter().map(|x| x.clone()).collect();
+        let balls_handles: Vec<BodyHandle> = self
+            .yellow_balls_handles
+            .iter()
+            .map(|x| x.clone())
+            .collect();
         for ball_handle in balls_handles {
             self.speed_up_inactive_ball(ball_handle);
         }
     }
 
     fn has_force(&self) -> bool {
-
         if self.is_active(&self.white_ball_handle) {
-            info!("white ball is active");
             return true;
         }
 
