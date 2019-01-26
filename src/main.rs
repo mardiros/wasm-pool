@@ -13,7 +13,7 @@ use ncollide2d::{
 
 use nphysics2d::{
     math::Velocity,
-    object::{BodyHandle, Material},
+    object::{BodyHandle, BodyStatus, Material},
     solver::SignoriniModel,
     volumetric::Volumetric,
     world::World,
@@ -35,11 +35,11 @@ const MARGIN_TOP: f32 = 1500.;
 const MARGIN_LEFT: f32 = 1000.;
 const BORDER: f32 = 280.;
 const BAND: f32 = 80.;
-const HOLE_SIZE: f32 = 160.;
+const HOLE_SIZE: f32 = 150.;
 
 const WORD_SCALE_FACTOR: f32 = 0.1;
 
-const Z_GRAVITY: f32 = -0.7;
+const Z_GRAVITY: f32 = -0.8;
 
 pub struct ZGravity {
 }
@@ -115,72 +115,25 @@ impl PoolTable {
     }
     fn initialize_bounds(&mut self) {
 
-        let bound_material: Material<f32> = Material::new(0.95, 0.);
+        let vertical_height = HEIGHT - 2. * HOLE_SIZE;
+        let horizontal_width = WIDTH - 2. * HOLE_SIZE;
 
-        let height_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
-            COLLIDER_MARGIN,
-            HEIGHT + 2. * BORDER - 2. * COLLIDER_MARGIN,
-        )));
-        let width_border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
-            WIDTH + 2. * BORDER - 2. * COLLIDER_MARGIN,
-            COLLIDER_MARGIN,
-        )));
+        let top = MARGIN_TOP + BORDER + BAND;
+        let left = MARGIN_LEFT + BORDER + BAND;
 
-        let top = MARGIN_TOP + BORDER;
-        let left = MARGIN_LEFT + BORDER;
         // left
-        let border_pos = Isometry2::new(Vector2::new(left, top), na::zero());
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            height_border_shape.clone(),
-            BodyHandle::ground(),
-            border_pos,
-            bound_material.clone(),
-        );
+        self.add_ground(left, top + HOLE_SIZE, vertical_height, COLLIDER_MARGIN);
 
         // top
-        let border_pos = Isometry2::new(Vector2::new(left, top), na::zero());
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            width_border_shape.clone(),
-            BodyHandle::ground(),
-            border_pos,
-            bound_material.clone(),
-        );
+        self.add_ground(left + HOLE_SIZE, top, COLLIDER_MARGIN, horizontal_width);
 
         // right
-        let border_pos = Isometry2::new(Vector2::new(left + WIDTH + 2. * BAND, top), na::zero());
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            height_border_shape.clone(),
-            BodyHandle::ground(),
-            border_pos,
-            bound_material.clone(),
-        );
-        // bottom
-        let border_pos = Isometry2::new(Vector2::new(left, top + HEIGHT + 2. * BAND), na::zero());
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            width_border_shape.clone(),
-            BodyHandle::ground(),
-            border_pos,
-            bound_material.clone(),
-        );
+        self.add_ground(left + WIDTH, top + HOLE_SIZE, vertical_height, COLLIDER_MARGIN);
 
-        // bottom band
-        let width_band_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
-            WIDTH * 0.5 - 2. * HOLE_SIZE - COLLIDER_MARGIN,
-            COLLIDER_MARGIN,
-        )));
-        let border_pos = Isometry2::new(Vector2::new(left, top + HEIGHT + BAND), na::zero());
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            width_band_shape.clone(),
-            BodyHandle::ground(),
-            border_pos,
-            bound_material.clone(),
-        );
+        // bottom
+        self.add_ground(left + HOLE_SIZE, top + HEIGHT, COLLIDER_MARGIN, horizontal_width);
     }
+
     fn initialize_balls(&mut self) {
         let center_y = MARGIN_TOP + BORDER + HEIGHT * 0.5;
         let white_ball_handle = self.add_ball(
@@ -278,98 +231,39 @@ impl PoolTable {
     fn initialize_holes(&mut self) {
         // add hole sensors
         //
-        let hole_shape: ShapeHandle<f32> = ShapeHandle::new(Ball::new(BALL_SIZE * 1.5));
-        let inertia = hole_shape.inertia(1.0);
-        let center_of_mass = hole_shape.center_of_mass();
 
         // top left
-        let pos = Vector2::new(
-            MARGIN_LEFT + BORDER + BAND * 0.75,
-            MARGIN_TOP + BORDER + BAND * 0.75,
+        let top_left_hole = self.add_hole(
+            MARGIN_LEFT + BORDER + BAND * 0.25,
+            MARGIN_TOP + BORDER + BAND * 0.25,
         );
-        let pos = Isometry2::new(pos, na::zero());
-        let top_left_hole = self.world.add_rigid_body(pos, inertia, center_of_mass);
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            hole_shape.clone(),
-            top_left_hole,
-            Isometry2::identity(),
-            Material::default(),
-        );
-
         // top
-        let pos = Vector2::new(
+        let top_hole = self.add_hole(
             MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH * 0.5,
             MARGIN_TOP + BORDER + BAND * 0.5,
         );
-        let pos = Isometry2::new(pos, na::zero());
-        let top_hole = self.world.add_rigid_body(pos, inertia, center_of_mass);
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            hole_shape.clone(),
-            top_hole,
-            Isometry2::identity(),
-            Material::default(),
-        );
 
         // top right
-        let pos = Vector2::new(
+        let top_right_hole = self.add_hole(
             MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
             MARGIN_TOP + BORDER + BAND, // * 0.75,
         );
-        let pos = Isometry2::new(pos, na::zero());
-        let top_right_hole = self.world.add_rigid_body(pos, inertia, center_of_mass);
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            hole_shape.clone(),
-            top_right_hole,
-            Isometry2::identity(),
-            Material::default(),
-        );
 
         // bottom right hole
-        let pos = Vector2::new(
+        let bottom_right_hole = self.add_hole(
             MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
             MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
         );
-        let pos = Isometry2::new(pos, na::zero());
-        let bottom_right_hole = self.world.add_rigid_body(pos, inertia, center_of_mass);
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            hole_shape.clone(),
-            bottom_right_hole,
-            Isometry2::identity(),
-            Material::default(),
-        );
-
         // bottom hole
-        let pos = Vector2::new(
+        let bottom_hole = self.add_hole(
             MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH * 0.5,
             MARGIN_TOP + BORDER + HEIGHT + BAND * 1.5,
         );
-        let pos = Isometry2::new(pos, na::zero());
-        let bottom_hole = self.world.add_rigid_body(pos, inertia, center_of_mass);
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            hole_shape.clone(),
-            bottom_hole,
-            Isometry2::identity(),
-            Material::default(),
-        );
 
         // bottom left hole
-        let pos = Vector2::new(
-            MARGIN_LEFT + BORDER + BAND * 0.75,
+        let bottom_left_hole = self.add_hole(
+            MARGIN_LEFT + BORDER + BAND * 0.25,
             MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
-        );
-        let pos = Isometry2::new(pos, na::zero());
-        let bottom_left_hole = self.world.add_rigid_body(pos, inertia, center_of_mass);
-        self.world.add_collider(
-            COLLIDER_MARGIN,
-            hole_shape.clone(),
-            bottom_left_hole,
-            Isometry2::identity(),
-            Material::default(),
         );
 
         self.holes = vec![
@@ -413,6 +307,45 @@ impl PoolTable {
         ball_handle
     }
 
+    pub fn add_hole(&mut self, x: f32, y: f32) -> BodyHandle {
+        // the hole size does not collide on the displayed border, the ball must enter in it.
+        // we fake the display right now.
+        let hole_shape: ShapeHandle<f32> = ShapeHandle::new(Ball::new(HOLE_SIZE - BALL_SIZE / 2.));
+        let inertia = hole_shape.inertia(1.0);
+        let center_of_mass = hole_shape.center_of_mass();
+
+        let pos = Vector2::new(
+            x,
+            y,
+        );
+        let pos = Isometry2::new(pos, na::zero());
+        let hole = self.world.add_rigid_body(pos, inertia, center_of_mass);
+        self.world.rigid_body_mut(hole).unwrap().set_status(BodyStatus::Static);
+        self.world.add_collider(
+            COLLIDER_MARGIN,
+            hole_shape,
+            hole,
+            Isometry2::identity(),
+            Material::default(),
+        );
+        hole
+    }
+
+    pub fn add_ground(&mut self, left: f32, top: f32, height: f32, width: f32) {
+        let border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
+            width,
+            height,
+        )));
+        let border_pos = Isometry2::new(Vector2::new(left, top), na::zero());
+        self.world.add_collider(
+            COLLIDER_MARGIN,
+            border_shape,
+            BodyHandle::ground(),
+            border_pos,
+            self.bound_material(),
+        );
+
+    }
 
     fn ball_material(&self) -> Material<f32> {
         Material::new(0.50, 1.)
@@ -420,6 +353,10 @@ impl PoolTable {
 
     fn ball_shape(&self) -> ShapeHandle<f32> {
         ShapeHandle::new(Ball::new(BALL_SIZE))
+    }
+
+    fn bound_material(&self) -> Material<f32> {
+        Material::new(0.95, 0.)
     }
 
      fn drop_ball(&mut self, ball: &BodyHandle) {
@@ -575,7 +512,6 @@ impl PoolTable {
             self.z_gravity.apply_force(&mut self.world, ball.clone());
         }
 
-
         let mut balls = vec![];
         for contact in self.world.contact_events() {
             // Handle contact events.
@@ -617,6 +553,9 @@ impl State for PoolGameUI {
     fn draw(&mut self, window: &mut Window) -> Result<()> {
 
         self.draw_table(window)?;
+        for hole in self.pool_table.holes.iter() {
+            self.draw_hole(window, hole);
+        }
 
         if let Some(ball) = self.pool_table.ball_8_handle {
             self.draw_ball(window, &ball, &Color::BLACK);
@@ -631,6 +570,8 @@ impl State for PoolGameUI {
         for ball_handle in self.pool_table.yellow_balls_handles.iter() {
             self.draw_ball(window, ball_handle, &Color::YELLOW);
         }
+
+
 
         if !self.pool_table.has_force() {
             let cane_len = 900.;
@@ -742,6 +683,25 @@ impl PoolGameUI {
         );
     }
 
+    fn hole_color(&self) -> Color {
+        Color::WHITE
+            .with_red(0x22 as f32 / 0xff as f32)
+            .with_green(0x22 as f32 / 0xff as f32)
+            .with_blue(0x22 as f32 / 0xff as f32)        
+    }
+    fn draw_hole(&self, window: &mut Window, handle: &BodyHandle) {
+        let hole_object = self.pool_table.world.body_part(handle.clone());
+        let pos = hole_object.position().clone();
+        let pos = pos.translation.vector;
+        //info!("Ball pos: {:?}", pos);
+        let ball_ball = Ball::new(HOLE_SIZE * WORD_SCALE_FACTOR);
+
+        window.draw(
+            &Circle::from_ball(FromNPVec(pos), ball_ball),
+            Col(self.hole_color()),
+        );
+    }
+
     fn draw_table(&self, window: &mut Window) -> Result<()> {
         let background = Color::WHITE
             .with_red(0xcc as f32 / 0xff as f32)
@@ -762,10 +722,6 @@ impl PoolGameUI {
             .with_red(0x4a as f32 / 0xff as f32)
             .with_green(0x2c as f32 / 0xff as f32)
             .with_blue(0x14 as f32 / 0xff as f32);
-        let hole_color = Color::WHITE
-            .with_red(0x22 as f32 / 0xff as f32)
-            .with_green(0x22 as f32 / 0xff as f32)
-            .with_blue(0x22 as f32 / 0xff as f32);
 
         window.draw(
             &Rectangle::new(
@@ -774,12 +730,8 @@ impl PoolGameUI {
                     MARGIN_TOP * WORD_SCALE_FACTOR,
                 ),
                 (
-                    WIDTH * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR * 2.
-                        + BAND * WORD_SCALE_FACTOR * 2.,
-                    HEIGHT * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR * 2.
-                        + BAND * WORD_SCALE_FACTOR * 2.,
+                    (WIDTH + BORDER * 2. + BAND * 2.) * WORD_SCALE_FACTOR,
+                    (HEIGHT + BORDER * 2. + BAND * 2.) * WORD_SCALE_FACTOR,
                 ),
             ),
             Col(border_color),
@@ -787,12 +739,12 @@ impl PoolGameUI {
         window.draw(
             &Rectangle::new(
                 (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR,
-                    MARGIN_TOP * WORD_SCALE_FACTOR + BORDER * WORD_SCALE_FACTOR,
+                    (MARGIN_LEFT + BORDER) * WORD_SCALE_FACTOR,
+                    (MARGIN_TOP + BORDER) * WORD_SCALE_FACTOR,
                 ),
                 (
-                    WIDTH * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 2.,
-                    HEIGHT * WORD_SCALE_FACTOR + BAND * WORD_SCALE_FACTOR * 2.,
+                    (WIDTH + BAND * 2.) * WORD_SCALE_FACTOR,
+                    (HEIGHT + BAND * 2.) * WORD_SCALE_FACTOR,
                 ),
             ),
             Col(band_color),
@@ -800,121 +752,12 @@ impl PoolGameUI {
         window.draw(
             &Rectangle::new(
                 (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR,
-                    MARGIN_TOP * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR,
+                    (MARGIN_LEFT + BORDER + BAND) * WORD_SCALE_FACTOR,
+                    (MARGIN_TOP + BORDER + BAND) * WORD_SCALE_FACTOR,
                 ),
                 (WIDTH * WORD_SCALE_FACTOR, HEIGHT * WORD_SCALE_FACTOR),
             ),
             Col(table_color),
-        );
-
-        // TOP LEFT hole
-        window.draw(
-            &Circle::new(
-                (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.75,
-                    MARGIN_TOP * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.75,
-                ),
-                HOLE_SIZE * WORD_SCALE_FACTOR,
-            ),
-            Col(hole_color),
-        );
-
-        // TOP hole
-        window.draw(
-            &Circle::new(
-                (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.5
-                        + WIDTH * WORD_SCALE_FACTOR * 0.5,
-                    MARGIN_TOP * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.5,
-                ),
-                HOLE_SIZE * WORD_SCALE_FACTOR,
-            ),
-            Col(hole_color),
-        );
-
-        // top right hole
-        window.draw(
-            &Circle::new(
-                (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR
-                        + WIDTH * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.25,
-                    MARGIN_TOP * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.75,
-                ),
-                HOLE_SIZE * WORD_SCALE_FACTOR,
-            ),
-            Col(hole_color),
-        );
-
-        // bottom right hole
-        window.draw(
-            &Circle::new(
-                (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR
-                        + WIDTH * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.25,
-                    MARGIN_TOP * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + HEIGHT * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 1.25,
-                ),
-                HOLE_SIZE * WORD_SCALE_FACTOR,
-            ),
-            Col(hole_color),
-        );
-
-        // bottom hole
-        window.draw(
-            &Circle::new(
-                (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.5
-                        + WIDTH * WORD_SCALE_FACTOR * 0.5,
-                    MARGIN_TOP * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + HEIGHT * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 1.5,
-                ),
-                HOLE_SIZE * WORD_SCALE_FACTOR,
-            ),
-            Col(hole_color),
-        );
-
-        // bottom left hole
-        window.draw(
-            &Circle::new(
-                (
-                    MARGIN_LEFT * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 0.75,
-                    MARGIN_TOP * WORD_SCALE_FACTOR
-                        + BORDER * WORD_SCALE_FACTOR
-                        + HEIGHT * WORD_SCALE_FACTOR
-                        + BAND * WORD_SCALE_FACTOR * 1.25,
-                ),
-                HOLE_SIZE * WORD_SCALE_FACTOR,
-            ),
-            Col(hole_color),
         );
 
         Ok(())
