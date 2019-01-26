@@ -9,6 +9,7 @@ use ncollide2d::{
     events::ContactEvent,
     math::{Isometry as Isometry2, Vector as Vector2},
     shape::{Ball, Cuboid, ShapeHandle},
+    world::CollisionObjectHandle
 };
 
 use nphysics2d::{
@@ -35,14 +36,13 @@ const MARGIN_TOP: f32 = 1500.;
 const MARGIN_LEFT: f32 = 1000.;
 const BORDER: f32 = 280.;
 const BAND: f32 = 80.;
-const HOLE_SIZE: f32 = 150.;
+const HOLE_SIZE: f32 = 160.;
 
 const WORD_SCALE_FACTOR: f32 = 0.1;
 
-const Z_GRAVITY: f32 = -0.8;
+const Z_GRAVITY: f32 = -0.9;
 
-pub struct ZGravity {
-}
+pub struct ZGravity {}
 
 impl ZGravity {
     // Creates a new radial force generator.
@@ -63,7 +63,6 @@ impl ZGravity {
     }
 }
 
-
 struct FromNPVec(Vector2<f32>);
 
 impl Into<Vector> for FromNPVec {
@@ -75,8 +74,9 @@ impl Into<Vector> for FromNPVec {
 struct PoolTable {
     world: World<f32>,
     z_gravity: ZGravity,
-    
+
     holes: Vec<BodyHandle>,
+    bounds: Vec<(BodyHandle, CollisionObjectHandle)>,
 
     white_ball_handle: Option<BodyHandle>,
     white_ball_handle_dropped: Option<BodyHandle>,
@@ -86,7 +86,6 @@ struct PoolTable {
 
     yellow_balls_handles: Vec<BodyHandle>,
     red_balls_handles: Vec<BodyHandle>,
-
 }
 
 impl PoolTable {
@@ -103,7 +102,8 @@ impl PoolTable {
         PoolTable {
             world,
             z_gravity,
-            holes: Vec::new(),
+            holes: Vec::with_capacity(6),
+            bounds: Vec::new(),
             white_ball_handle: None,
             white_ball_handle_dropped: None,
             ball_8_handle: None,
@@ -111,111 +111,112 @@ impl PoolTable {
 
             yellow_balls_handles: Vec::new(),
             red_balls_handles: Vec::new(),
-       }
+        }
     }
     fn initialize_bounds(&mut self) {
+        let vertical_height = HEIGHT + 2. * BAND;
+        let vertical_height_thin = HEIGHT - HOLE_SIZE;
+        let horizontal_width = WIDTH + 2. * BAND;
+        let horizontal_width_thin = horizontal_width / 2. - HOLE_SIZE;
 
-        let vertical_height = HEIGHT - 2. * HOLE_SIZE;
-        let horizontal_width = WIDTH - 2. * HOLE_SIZE;
-
-        let top = MARGIN_TOP + BORDER + BAND;
-        let left = MARGIN_LEFT + BORDER + BAND;
+        let top = MARGIN_TOP + BORDER;
+        let left = MARGIN_LEFT + BORDER;
 
         // left
-        self.add_ground(left, top + HOLE_SIZE, vertical_height, COLLIDER_MARGIN);
+        self.add_bound(left, top, vertical_height, COLLIDER_MARGIN);
+        self.add_bound(
+            left + BAND,
+            top + BALL_SIZE,
+            vertical_height_thin,
+            COLLIDER_MARGIN,
+        );
 
         // top
-        self.add_ground(left + HOLE_SIZE, top, COLLIDER_MARGIN, horizontal_width);
+        self.add_bound(left, top, COLLIDER_MARGIN, horizontal_width);
+        self.add_bound(
+            left + BALL_SIZE,
+            top + BAND,
+            COLLIDER_MARGIN,
+            horizontal_width_thin,
+        );
+        self.add_bound(
+            left + BALL_SIZE + horizontal_width_thin + HOLE_SIZE,
+            top + BAND,
+            COLLIDER_MARGIN,
+            horizontal_width_thin,
+        );
 
         // right
-        self.add_ground(left + WIDTH, top + HOLE_SIZE, vertical_height, COLLIDER_MARGIN);
+        self.add_bound(
+            left + horizontal_width,
+            top,
+            vertical_height,
+            COLLIDER_MARGIN,
+        );
+        self.add_bound(
+            left + horizontal_width - BAND,
+            top + BALL_SIZE,
+            vertical_height_thin,
+            COLLIDER_MARGIN,
+        );
 
         // bottom
-        self.add_ground(left + HOLE_SIZE, top + HEIGHT, COLLIDER_MARGIN, horizontal_width);
+        self.add_bound(
+            left,
+            top + vertical_height,
+            COLLIDER_MARGIN,
+            horizontal_width,
+        );
+        self.add_bound(
+            left + BALL_SIZE,
+            top + vertical_height - BAND,
+            COLLIDER_MARGIN,
+            horizontal_width_thin,
+        );
+        self.add_bound(
+            left + BALL_SIZE + horizontal_width_thin + HOLE_SIZE,
+            top + vertical_height - BAND,
+            COLLIDER_MARGIN,
+            horizontal_width_thin,
+        );
     }
 
     fn initialize_balls(&mut self) {
         let center_y = MARGIN_TOP + BORDER + HEIGHT * 0.5;
-        let white_ball_handle = self.add_ball(
-            MARGIN_LEFT + BORDER + WIDTH * 0.25,
-            center_y,
-        );
+        let white_ball_handle = self.add_ball(MARGIN_LEFT + BORDER + WIDTH * 0.25, center_y);
 
         let center_x = MARGIN_LEFT + BORDER + WIDTH * 0.75;
 
         //     r
-        let ball_r1 = self.add_ball(
-            center_x - 4. * BALL_SIZE,
-            center_y,
-        );
+        let ball_r1 = self.add_ball(center_x - 4. * BALL_SIZE, center_y);
 
         //    y r  ( right to left )
 
-        let ball_r2 = self.add_ball(
-            center_x - 2. * BALL_SIZE,
-            center_y - 1. * BALL_SIZE,
-        );
+        let ball_r2 = self.add_ball(center_x - 2. * BALL_SIZE, center_y - 1. * BALL_SIZE);
 
-        let ball_y1 = self.add_ball(
-            center_x - 2. * BALL_SIZE,
-            center_y + 1. * BALL_SIZE,
-        );
+        let ball_y1 = self.add_ball(center_x - 2. * BALL_SIZE, center_y + 1. * BALL_SIZE);
 
         //   r b y  ( right to left )
 
-        let ball_y2 = self.add_ball(
-            center_x,
-            center_y - 2. * BALL_SIZE,
-        );
+        let ball_y2 = self.add_ball(center_x, center_y - 2. * BALL_SIZE);
 
         let ball_8_handle = self.add_ball(center_x, center_y);
 
-        let ball_r3 = self.add_ball(
-            center_x,
-            center_y + 2. * BALL_SIZE,
-        );
+        let ball_r3 = self.add_ball(center_x, center_y + 2. * BALL_SIZE);
 
         //  y r y r  ( right to left )
-        let ball_r4 = self.add_ball(
-            center_x + 2. * BALL_SIZE,
-            center_y - 3. * BALL_SIZE,
-        );
-        let ball_y3 = self.add_ball(
-            center_x + 2. * BALL_SIZE,
-            center_y - 1. * BALL_SIZE,
-        );
-        let ball_r5 = self.add_ball(
-            center_x + 2. * BALL_SIZE,
-            center_y + 1. * BALL_SIZE,
-        );
-        let ball_y4 = self.add_ball(
-            center_x + 2. * BALL_SIZE,
-            center_y + 3. * BALL_SIZE,
-        );
+        let ball_r4 = self.add_ball(center_x + 2. * BALL_SIZE, center_y - 3. * BALL_SIZE);
+        let ball_y3 = self.add_ball(center_x + 2. * BALL_SIZE, center_y - 1. * BALL_SIZE);
+        let ball_r5 = self.add_ball(center_x + 2. * BALL_SIZE, center_y + 1. * BALL_SIZE);
+        let ball_y4 = self.add_ball(center_x + 2. * BALL_SIZE, center_y + 3. * BALL_SIZE);
 
         // r y r y y ( right to left )
-        let ball_y5 = self.add_ball(
-            center_x + 4. * BALL_SIZE,
-            center_y - 4. * BALL_SIZE,
-        );
-        let ball_y6 = self.add_ball(
-            center_x + 4. * BALL_SIZE,
-            center_y - 2. * BALL_SIZE,
-        );
-        let ball_r6 = self.add_ball(
-            center_x + 4. * BALL_SIZE,
-            center_y,
-        );
-        let ball_y7 = self.add_ball(
-            center_x + 4. * BALL_SIZE,
-            center_y + 2. * BALL_SIZE,
-        );
-        let ball_r7 = self.add_ball(
-            center_x + 4. * BALL_SIZE,
-            center_y + 4. * BALL_SIZE,
-        );
+        let ball_y5 = self.add_ball(center_x + 4. * BALL_SIZE, center_y - 4. * BALL_SIZE);
+        let ball_y6 = self.add_ball(center_x + 4. * BALL_SIZE, center_y - 2. * BALL_SIZE);
+        let ball_r6 = self.add_ball(center_x + 4. * BALL_SIZE, center_y);
+        let ball_y7 = self.add_ball(center_x + 4. * BALL_SIZE, center_y + 2. * BALL_SIZE);
+        let ball_r7 = self.add_ball(center_x + 4. * BALL_SIZE, center_y + 4. * BALL_SIZE);
 
-        
         self.red_balls_handles = vec![
             ball_r1, ball_r2, ball_r3, ball_r4, ball_r5, ball_r6, ball_r7,
         ];
@@ -223,9 +224,8 @@ impl PoolTable {
             ball_y1, ball_y2, ball_y3, ball_y4, ball_y5, ball_y6, ball_y7,
         ];
 
-        self.ball_8_handle = Some(ball_8_handle); 
+        self.ball_8_handle = Some(ball_8_handle);
         self.white_ball_handle = Some(white_ball_handle);
-
     }
 
     fn initialize_holes(&mut self) {
@@ -233,57 +233,47 @@ impl PoolTable {
         //
 
         // top left
-        let top_left_hole = self.add_hole(
-            MARGIN_LEFT + BORDER + BAND * 0.25,
-            MARGIN_TOP + BORDER + BAND * 0.25,
+        self.add_hole(
+            MARGIN_LEFT + BORDER + BAND,
+            MARGIN_TOP + BORDER + BAND,
         );
         // top
-        let top_hole = self.add_hole(
+        self.add_hole(
             MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH * 0.5,
             MARGIN_TOP + BORDER + BAND * 0.5,
         );
 
         // top right
-        let top_right_hole = self.add_hole(
+        self.add_hole(
             MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
-            MARGIN_TOP + BORDER + BAND, // * 0.75,
+            MARGIN_TOP + BORDER + BAND,
         );
 
         // bottom right hole
-        let bottom_right_hole = self.add_hole(
+        self.add_hole(
             MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
             MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
         );
         // bottom hole
-        let bottom_hole = self.add_hole(
+        self.add_hole(
             MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH * 0.5,
             MARGIN_TOP + BORDER + HEIGHT + BAND * 1.5,
         );
 
         // bottom left hole
-        let bottom_left_hole = self.add_hole(
-            MARGIN_LEFT + BORDER + BAND * 0.25,
-            MARGIN_TOP + BORDER + HEIGHT + BAND * 1.25,
+        self.add_hole(
+            MARGIN_LEFT + BORDER + BAND * 0.5,
+            MARGIN_TOP + BORDER + HEIGHT + BAND * 1.5,
         );
-
-        self.holes = vec![
-            top_left_hole,
-            top_hole,
-            top_right_hole,
-            bottom_left_hole,
-            bottom_hole,
-            bottom_right_hole,
-        ];
     }
 
     fn initialze_world(&mut self) {
+        self.initialize_holes();
         self.initialize_bounds();
         self.initialize_balls();
-        self.initialize_holes();
 
         //let mut z_gravity: ZGravity = ZGravity::new(Vec::new());
         //self.world.add_force_generator(z_gravity);
-
     }
 
     fn add_ball(&mut self, x: f32, y: f32) -> BodyHandle {
@@ -296,7 +286,6 @@ impl PoolTable {
         let ball_handle = self.world.add_rigid_body(ball_pos, inertia, center_of_mass);
         // z_gravity.add_body_part(ball_handle);
 
-
         self.world.add_collider(
             COLLIDER_MARGIN,
             ball_shape.clone(),
@@ -307,20 +296,20 @@ impl PoolTable {
         ball_handle
     }
 
-    pub fn add_hole(&mut self, x: f32, y: f32) -> BodyHandle {
+    pub fn add_hole(&mut self, x: f32, y: f32) {
         // the hole size does not collide on the displayed border, the ball must enter in it.
         // we fake the display right now.
-        let hole_shape: ShapeHandle<f32> = ShapeHandle::new(Ball::new(HOLE_SIZE - BALL_SIZE / 2.));
+        let hole_shape: ShapeHandle<f32> = ShapeHandle::new(Ball::new(HOLE_SIZE - BALL_SIZE * 0.5));
         let inertia = hole_shape.inertia(1.0);
         let center_of_mass = hole_shape.center_of_mass();
 
-        let pos = Vector2::new(
-            x,
-            y,
-        );
+        let pos = Vector2::new(x, y);
         let pos = Isometry2::new(pos, na::zero());
         let hole = self.world.add_rigid_body(pos, inertia, center_of_mass);
-        self.world.rigid_body_mut(hole).unwrap().set_status(BodyStatus::Static);
+        self.world
+            .rigid_body_mut(hole)
+            .unwrap()
+            .set_status(BodyStatus::Static);
         self.world.add_collider(
             COLLIDER_MARGIN,
             hole_shape,
@@ -328,23 +317,29 @@ impl PoolTable {
             Isometry2::identity(),
             Material::default(),
         );
-        hole
+        self.holes.push(hole);
     }
 
-    pub fn add_ground(&mut self, left: f32, top: f32, height: f32, width: f32) {
-        let border_shape: ShapeHandle<f32> = ShapeHandle::new(Cuboid::new(Vector2::new(
-            width,
-            height,
-        )));
-        let border_pos = Isometry2::new(Vector2::new(left, top), na::zero());
-        self.world.add_collider(
+    pub fn add_bound(&mut self, left: f32, top: f32, height: f32, width: f32) {
+        let bound_shape: ShapeHandle<f32> =
+            ShapeHandle::new(Cuboid::new(Vector2::new(width, height)));
+        let inertia = bound_shape.inertia(1.0);
+        let center_of_mass = bound_shape.center_of_mass();
+
+        let pos = Isometry2::new(Vector2::new(left, top), na::zero());
+        let bound = self.world.add_rigid_body(pos, inertia, center_of_mass);
+        self.world
+            .rigid_body_mut(bound)
+            .unwrap()
+            .set_status(BodyStatus::Static);
+        let collider = self.world.add_collider(
             COLLIDER_MARGIN,
-            border_shape,
+            bound_shape,
             BodyHandle::ground(),
-            border_pos,
+            pos,
             self.bound_material(),
         );
-
+        self.bounds.push((bound, collider));
     }
 
     fn ball_material(&self) -> Material<f32> {
@@ -359,11 +354,10 @@ impl PoolTable {
         Material::new(0.95, 0.)
     }
 
-     fn drop_ball(&mut self, ball: &BodyHandle) {
-
+    fn drop_ball(&mut self, ball: &BodyHandle) {
         if self.dropped_balls_handles.contains(ball) {
             info!("!!! ball dropped");
-            return
+            return;
         }
 
         if Some(*ball) == self.white_ball_handle {
@@ -415,8 +409,12 @@ impl PoolTable {
 
         // XXX inneficient
         let ball = self.add_ball(x, y);
-        self.dropped_balls_handles = self.dropped_balls_handles.iter().filter(
-            |b|{ **b != ball }).map(|b| b.clone()).collect();
+        self.dropped_balls_handles = self
+            .dropped_balls_handles
+            .iter()
+            .filter(|b| **b != ball)
+            .map(|b| b.clone())
+            .collect();
         self.white_ball_handle = Some(ball);
 
         self.white_ball_handle_dropped = None;
@@ -445,10 +443,10 @@ impl PoolTable {
     fn speed_up_inactive_balls(&mut self) {
         if let Some(ball) = self.white_ball_handle {
             self.speed_up_inactive_ball(ball);
-        } 
+        }
         if let Some(ball) = self.ball_8_handle {
             self.speed_up_inactive_ball(ball);
-        } 
+        }
 
         let balls_handles: Vec<BodyHandle> =
             self.red_balls_handles.iter().map(|x| x.clone()).collect();
@@ -490,7 +488,10 @@ impl PoolTable {
 
     fn shoot(&mut self, cane_force_x: f32, cane_force_y: f32) {
         info!("Apply force {} {}", cane_force_x, cane_force_y);
-        let ball_object = self.world.rigid_body_mut(self.white_ball_handle.unwrap()).unwrap();
+        let ball_object = self
+            .world
+            .rigid_body_mut(self.white_ball_handle.unwrap())
+            .unwrap();
         let vel = Velocity::linear(cane_force_x, cane_force_y);
         ball_object.set_velocity(vel);
     }
@@ -536,7 +537,7 @@ struct PoolGameUI {
 }
 
 impl State for PoolGameUI {
- fn new() -> Result<PoolGameUI> {
+    fn new() -> Result<PoolGameUI> {
         let mut pool_table = PoolTable::new();
         pool_table.initialze_world();
 
@@ -551,8 +552,11 @@ impl State for PoolGameUI {
     }
 
     fn draw(&mut self, window: &mut Window) -> Result<()> {
-
         self.draw_table(window)?;
+        for (bound, collision_object) in self.pool_table.bounds.iter() {
+            self.draw_bound(window, bound, collision_object);
+        }
+
         for hole in self.pool_table.holes.iter() {
             self.draw_hole(window, hole);
         }
@@ -571,15 +575,16 @@ impl State for PoolGameUI {
             self.draw_ball(window, ball_handle, &Color::YELLOW);
         }
 
-
-
         if !self.pool_table.has_force() {
             let cane_len = 900.;
             let queue = Cuboid::new(Vector2::new(cane_len * WORD_SCALE_FACTOR, 2.));
             if self.pool_table.white_ball_handle.is_none() {
                 self.pool_table.respawn_white_ball();
             }
-            let ball_object = self.pool_table.world.body_part(self.pool_table.white_ball_handle.unwrap());
+            let ball_object = self
+                .pool_table
+                .world
+                .body_part(self.pool_table.white_ball_handle.unwrap());
             let pos = ball_object.position().clone();
             let mut pos = pos.translation.vector;
 
@@ -612,9 +617,8 @@ impl State for PoolGameUI {
     }
 
     fn update(&mut self, window: &mut Window) -> Result<()> {
-
         self.pool_table.step();
- 
+
         if window.keyboard()[Key::Right].is_down() {
             if window.keyboard()[Key::LControl].is_down()
                 || window.keyboard()[Key::RControl].is_down()
@@ -668,7 +672,6 @@ impl State for PoolGameUI {
 }
 
 impl PoolGameUI {
-
     fn draw_ball(&self, window: &mut Window, handle: &BodyHandle, color: &Color) {
         //self.white_ball.draw(window);
         let ball_object = self.pool_table.world.body_part(handle.clone());
@@ -687,8 +690,23 @@ impl PoolGameUI {
         Color::WHITE
             .with_red(0x22 as f32 / 0xff as f32)
             .with_green(0x22 as f32 / 0xff as f32)
-            .with_blue(0x22 as f32 / 0xff as f32)        
+            .with_blue(0x22 as f32 / 0xff as f32)
     }
+
+    fn draw_bound(&self, window: &mut Window, handle: &BodyHandle, collision_object: &CollisionObjectHandle) {
+        let bound_object = self.pool_table.world.body_part(handle.clone());
+        let shape = self.pool_table.world.collision_world().collision_object(collision_object.clone()).unwrap().shape().as_shape().unwrap();
+        let pos = bound_object.position().clone();
+        let pos = pos.translation.vector;
+        //info!("Ball pos: {:?}", pos);
+        let ball_ball: Cuboid<f32> = Cuboid::new(Vector2::new());
+
+        window.draw(
+            &Rectangle::from_cuboid(FromNPVec(pos), ball_ball),
+            Col(self.hole_color()),
+        );
+    }
+
     fn draw_hole(&self, window: &mut Window, handle: &BodyHandle) {
         let hole_object = self.pool_table.world.body_part(handle.clone());
         let pos = hole_object.position().clone();
@@ -762,7 +780,6 @@ impl PoolGameUI {
 
         Ok(())
     }
-
 }
 
 fn main() {
