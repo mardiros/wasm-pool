@@ -12,10 +12,9 @@ use ncollide2d::{
 };
 
 use nphysics2d::{
-    force_generator::ForceGenerator,
     math::Velocity,
-    object::{BodyHandle, BodySet, Material},
-    solver::{IntegrationParameters, SignoriniModel},
+    object::{BodyHandle, Material},
+    solver::SignoriniModel,
     volumetric::Volumetric,
     world::World,
 };
@@ -279,7 +278,7 @@ impl PoolTable {
     fn initialize_holes(&mut self) {
         // add hole sensors
         //
-        let hole_shape: ShapeHandle<f32> = ShapeHandle::new(Ball::new(BALL_SIZE * 0.5));
+        let hole_shape: ShapeHandle<f32> = ShapeHandle::new(Ball::new(BALL_SIZE * 1.5));
         let inertia = hole_shape.inertia(1.0);
         let center_of_mass = hole_shape.center_of_mass();
 
@@ -426,7 +425,7 @@ impl PoolTable {
      fn drop_ball(&mut self, ball: &BodyHandle) {
 
         if self.dropped_balls_handles.contains(ball) {
-            info!("!!! drop a ball");
+            info!("!!! ball dropped");
             return
         }
 
@@ -474,13 +473,16 @@ impl PoolTable {
     }
 
     fn respawn_white_ball(&mut self) {
-        self.white_ball_handle = self.white_ball_handle_dropped;
-        self.white_ball_handle_dropped = None;
-
-        let x = MARGIN_LEFT + BORDER + WIDTH * 0.75;
+        let x = MARGIN_LEFT + BORDER + WIDTH * 0.25;
         let y = MARGIN_TOP + BORDER + HEIGHT * 0.5;
 
-        self.add_ball(x, y);
+        // XXX inneficient
+        let ball = self.add_ball(x, y);
+        self.dropped_balls_handles = self.dropped_balls_handles.iter().filter(
+            |b|{ **b != ball }).map(|b| b.clone()).collect();
+        self.white_ball_handle = Some(ball);
+
+        self.white_ball_handle_dropped = None;
     }
 
     fn speed_up_inactive_ball(&mut self, handle: BodyHandle) {
@@ -634,7 +636,7 @@ impl State for PoolGameUI {
             let cane_len = 900.;
             let queue = Cuboid::new(Vector2::new(cane_len * WORD_SCALE_FACTOR, 2.));
             if self.pool_table.white_ball_handle.is_none() {
-                return Ok(());
+                self.pool_table.respawn_white_ball();
             }
             let ball_object = self.pool_table.world.body_part(self.pool_table.white_ball_handle.unwrap());
             let pos = ball_object.position().clone();
