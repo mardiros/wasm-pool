@@ -9,7 +9,7 @@ use ncollide2d::{
     events::ContactEvent,
     math::{Isometry as Isometry2, Vector as Vector2},
     shape::{Ball, Cuboid, ShapeHandle},
-    world::CollisionObjectHandle
+    world::CollisionObjectHandle,
 };
 
 use nphysics2d::{
@@ -28,6 +28,7 @@ use quicksilver::{
     Result,
 };
 
+const DISPLAY_BOUND: bool = false;
 const COLLIDER_MARGIN: f32 = 0.01;
 const BALL_SIZE: f32 = 120.0;
 const WIDTH: f32 = 7720.0;
@@ -115,69 +116,91 @@ impl PoolTable {
     }
     fn initialize_bounds(&mut self) {
         let vertical_height = HEIGHT + 2. * BAND;
-        let vertical_height_thin = HEIGHT - HOLE_SIZE;
+        let vertical_height_thin = HEIGHT - HOLE_SIZE - 3. * BAND;
         let horizontal_width = WIDTH + 2. * BAND;
-        let horizontal_width_thin = horizontal_width / 2. - HOLE_SIZE;
+        let horizontal_width_thin = horizontal_width - HOLE_SIZE - 2. * BAND;
+        let half_horizontal_width_thin = (horizontal_width - 3. * HOLE_SIZE - 7. * BAND) / 2.;
 
         let top = MARGIN_TOP + BORDER;
         let left = MARGIN_LEFT + BORDER;
 
-        // left
-        self.add_bound(left, top, vertical_height, COLLIDER_MARGIN);
-        self.add_bound(
-            left + BAND,
-            top + BALL_SIZE,
-            vertical_height_thin,
-            COLLIDER_MARGIN,
-        );
-
         // top
-        self.add_bound(left, top, COLLIDER_MARGIN, horizontal_width);
         self.add_bound(
-            left + BALL_SIZE,
-            top + BAND,
-            COLLIDER_MARGIN,
-            horizontal_width_thin,
-        );
-        self.add_bound(
-            left + BALL_SIZE + horizontal_width_thin + HOLE_SIZE,
-            top + BAND,
-            COLLIDER_MARGIN,
-            horizontal_width_thin,
+            left + horizontal_width / 2.,
+            top - BAND,
+            horizontal_width / 2.,
+            BAND / 2.,
         );
 
-        // right
         self.add_bound(
-            left + horizontal_width,
-            top,
-            vertical_height,
-            COLLIDER_MARGIN,
+            left + HOLE_SIZE + BAND * 1.5 + half_horizontal_width_thin / 2.,
+            top + BAND / 2.,
+            half_horizontal_width_thin / 2.,
+            BAND / 2.,
+        );
+
+        self.add_bound(
+            left + 2. * HOLE_SIZE
+                + 5.5 * BAND
+                + half_horizontal_width_thin
+                + half_horizontal_width_thin / 2.,
+            top + BAND / 2.,
+            half_horizontal_width_thin / 2.,
+            BAND / 2.,
+        );
+
+        // left
+        self.add_bound(
+            left - BAND,
+            top + vertical_height / 2.,
+            BAND / 2.,
+            vertical_height / 2.,
         );
         self.add_bound(
-            left + horizontal_width - BAND,
-            top + BALL_SIZE,
-            vertical_height_thin,
-            COLLIDER_MARGIN,
+            left + BAND / 2.,
+            top + HOLE_SIZE + BAND * 1.5 + vertical_height_thin / 2.,
+            BAND / 2.,
+            vertical_height_thin / 2.,
         );
 
         // bottom
         self.add_bound(
-            left,
-            top + vertical_height,
-            COLLIDER_MARGIN,
-            horizontal_width,
+            left + horizontal_width / 2.,
+            top + vertical_height + BAND,
+            horizontal_width / 2.,
+            BAND / 2.,
         );
+
         self.add_bound(
-            left + BALL_SIZE,
-            top + vertical_height - BAND,
-            COLLIDER_MARGIN,
-            horizontal_width_thin,
+            left + HOLE_SIZE + BAND * 1.5 + half_horizontal_width_thin / 2.,
+            top + vertical_height_thin + 2. * HOLE_SIZE + 2.5 * BAND,
+            half_horizontal_width_thin / 2.,
+            BAND / 2.,
         );
+
         self.add_bound(
-            left + BALL_SIZE + horizontal_width_thin + HOLE_SIZE,
-            top + vertical_height - BAND,
-            COLLIDER_MARGIN,
-            horizontal_width_thin,
+            left + 2. * HOLE_SIZE
+                + 5.5 * BAND
+                + half_horizontal_width_thin
+                + half_horizontal_width_thin / 2.,
+            top + vertical_height_thin + 2. * HOLE_SIZE + 2.5 * BAND,
+            half_horizontal_width_thin / 2.,
+            BAND / 2.,
+        );
+
+        // right
+        self.add_bound(
+            left + horizontal_width + BAND,
+            top + vertical_height / 2.,
+            BAND / 2.,
+            vertical_height / 2.,
+        );
+
+        self.add_bound(
+            left + horizontal_width_thin + HOLE_SIZE + BAND * 1.5,
+            top + HOLE_SIZE + BAND * 1.5 + vertical_height_thin / 2.,
+            BAND / 2.,
+            vertical_height_thin / 2.,
         );
     }
 
@@ -234,19 +257,19 @@ impl PoolTable {
 
         // top left
         self.add_hole(
-            MARGIN_LEFT + BORDER + BAND,
-            MARGIN_TOP + BORDER + BAND,
+            MARGIN_LEFT + BORDER + BAND * 0.5,
+            MARGIN_TOP + BORDER + BAND * 0.5,
         );
         // top
         self.add_hole(
-            MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH * 0.5,
+            MARGIN_LEFT + BORDER + BAND + WIDTH * 0.5,
             MARGIN_TOP + BORDER + BAND * 0.5,
         );
 
         // top right
         self.add_hole(
-            MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.25,
-            MARGIN_TOP + BORDER + BAND,
+            MARGIN_LEFT + BORDER + BAND + WIDTH + BAND * 0.5,
+            MARGIN_TOP + BORDER + BAND * 0.5,
         );
 
         // bottom right hole
@@ -256,7 +279,7 @@ impl PoolTable {
         );
         // bottom hole
         self.add_hole(
-            MARGIN_LEFT + BORDER + BAND * 0.5 + WIDTH * 0.5,
+            MARGIN_LEFT + BORDER + BAND + WIDTH * 0.5,
             MARGIN_TOP + BORDER + HEIGHT + BAND * 1.5,
         );
 
@@ -320,13 +343,13 @@ impl PoolTable {
         self.holes.push(hole);
     }
 
-    pub fn add_bound(&mut self, left: f32, top: f32, height: f32, width: f32) {
+    pub fn add_bound(&mut self, center_x: f32, center_y: f32, width: f32, height: f32) {
         let bound_shape: ShapeHandle<f32> =
             ShapeHandle::new(Cuboid::new(Vector2::new(width, height)));
         let inertia = bound_shape.inertia(1.0);
         let center_of_mass = bound_shape.center_of_mass();
 
-        let pos = Isometry2::new(Vector2::new(left, top), na::zero());
+        let pos = Isometry2::new(Vector2::new(center_x, center_y), na::zero());
         let bound = self.world.add_rigid_body(pos, inertia, center_of_mass);
         self.world
             .rigid_body_mut(bound)
@@ -553,12 +576,15 @@ impl State for PoolGameUI {
 
     fn draw(&mut self, window: &mut Window) -> Result<()> {
         self.draw_table(window)?;
-        for (bound, collision_object) in self.pool_table.bounds.iter() {
-            self.draw_bound(window, bound, collision_object);
-        }
 
         for hole in self.pool_table.holes.iter() {
             self.draw_hole(window, hole);
+        }
+
+        if DISPLAY_BOUND {
+            for (bound, collision_object) in self.pool_table.bounds.iter() {
+                self.draw_bound(window, bound, collision_object);
+            }
         }
 
         if let Some(ball) = self.pool_table.ball_8_handle {
@@ -693,18 +719,33 @@ impl PoolGameUI {
             .with_blue(0x22 as f32 / 0xff as f32)
     }
 
-    fn draw_bound(&self, window: &mut Window, handle: &BodyHandle, collision_object: &CollisionObjectHandle) {
+    fn draw_bound(
+        &self,
+        window: &mut Window,
+        handle: &BodyHandle,
+        collision_object: &CollisionObjectHandle,
+    ) {
         let bound_object = self.pool_table.world.body_part(handle.clone());
-        let shape = self.pool_table.world.collision_world().collision_object(collision_object.clone()).unwrap().shape().as_shape().unwrap();
+        let shape: &Cuboid<f32> = self
+            .pool_table
+            .world
+            .collision_world()
+            .collision_object(collision_object.clone())
+            .unwrap()
+            .shape()
+            .as_shape()
+            .unwrap();
         let pos = bound_object.position().clone();
         let pos = pos.translation.vector;
-        //info!("Ball pos: {:?}", pos);
-        let ball_ball: Cuboid<f32> = Cuboid::new(Vector2::new());
 
-        window.draw(
-            &Rectangle::from_cuboid(FromNPVec(pos), ball_ball),
-            Col(self.hole_color()),
+        let half_size: Vector2<f32> = shape.half_extents().clone().into();
+        let vecr = Vector::new(
+            (pos.x - half_size.x) * WORD_SCALE_FACTOR,
+            (pos.y - half_size.y) * WORD_SCALE_FACTOR,
         );
+        let rect = Rectangle::new(vecr, half_size * 2. * WORD_SCALE_FACTOR);
+
+        window.draw(&rect, Col(Color::RED));
     }
 
     fn draw_hole(&self, window: &mut Window, handle: &BodyHandle) {
