@@ -29,17 +29,20 @@ use quicksilver::{
 };
 
 const DISPLAY_BOUND: bool = false;
-const COLLIDER_MARGIN: f32 = 0.01;
-const BALL_SIZE: f32 = 120.0;
-const WIDTH: f32 = 7720.0;
-const HEIGHT: f32 = 4000.;
-const MARGIN_TOP: f32 = 1500.;
-const MARGIN_LEFT: f32 = 1000.;
-const BORDER: f32 = 280.;
-const BAND: f32 = 80.;
-const HOLE_SIZE: f32 = 160.;
+const COLLIDER_MARGIN: f32 = 0.1;
+const BALL_SIZE: f32 = 240.0;
+const WIDTH: f32 = 15440.0;
+const HEIGHT: f32 = 8000.;
+const MARGIN_TOP: f32 = 3000.;
+const MARGIN_LEFT: f32 = 2000.;
+const BORDER: f32 = 560.;
+const BAND: f32 = 160.;
+const HOLE_SIZE: f32 = 320.;
+const CANE_SIZE: f32 = 1800.;
 
-const WORD_SCALE_FACTOR: f32 = 0.1;
+
+const WORD_SCALE_FACTOR: f32 = 0.05;
+const TIME_STEP: f32 = 1. / 60.;
 
 const Z_GRAVITY: f32 = -0.9;
 
@@ -93,7 +96,7 @@ impl PoolTable {
     fn new() -> PoolTable {
         let mut world: World<f32> = World::new();
         let param = world.integration_parameters_mut();
-        param.dt = 1. / 120.;
+        param.dt = TIME_STEP;
 
         let model: SignoriniModel<f32> = SignoriniModel::new();
         world.set_contact_model(model);
@@ -602,8 +605,7 @@ impl State for PoolGameUI {
         }
 
         if !self.pool_table.has_force() {
-            let cane_len = 900.;
-            let queue = Cuboid::new(Vector2::new(cane_len * WORD_SCALE_FACTOR, 2.));
+            let queue = Cuboid::new(Vector2::new(CANE_SIZE * WORD_SCALE_FACTOR, 2.));
             if self.pool_table.white_ball_handle.is_none() {
                 self.pool_table.respawn_white_ball();
             }
@@ -615,8 +617,8 @@ impl State for PoolGameUI {
             let mut pos = pos.translation.vector;
 
             let rot = self.cane_rotation.to_radians();
-            pos.x = pos.x - (cane_len + BALL_SIZE + (self.cane_force)) * rot.cos();
-            pos.y = pos.y - (cane_len + BALL_SIZE + (self.cane_force)) * rot.sin();
+            pos.x = pos.x - (CANE_SIZE + BALL_SIZE + (self.cane_force)) * rot.cos();
+            pos.y = pos.y - (CANE_SIZE + BALL_SIZE + (self.cane_force)) * rot.sin();
             window.draw_ex(
                 &Rectangle::from_cuboid(FromNPVec(pos), &queue),
                 Col(Color::RED),
@@ -624,13 +626,13 @@ impl State for PoolGameUI {
                 0, // we don't really care about the Z value
             );
 
-            let queue = Cuboid::new(Vector2::new(cane_len * WORD_SCALE_FACTOR, 0.25));
+            let queue = Cuboid::new(Vector2::new(CANE_SIZE * WORD_SCALE_FACTOR, 0.25));
             let pos = ball_object.position().clone();
             let mut pos = pos.translation.vector;
 
             let rot = self.cane_rotation.to_radians();
-            pos.x = pos.x + (cane_len + BALL_SIZE + (self.cane_force)) * rot.cos();
-            pos.y = pos.y + (cane_len + BALL_SIZE + (self.cane_force)) * rot.sin();
+            pos.x = pos.x + (CANE_SIZE + BALL_SIZE + (self.cane_force)) * rot.cos();
+            pos.y = pos.y + (CANE_SIZE + BALL_SIZE + (self.cane_force)) * rot.sin();
             window.draw_ex(
                 &Rectangle::from_cuboid(FromNPVec(pos), &queue),
                 Col(Color::BLUE),
