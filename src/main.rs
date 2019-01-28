@@ -531,12 +531,26 @@ impl PoolTable {
         ball_object.set_velocity(vel);
     }
 
+    fn in_world(&self, handle: BodyHandle) -> bool {
+        let ball_object = self
+            .world
+            .body_part(handle);
+        let pos = ball_object.position().clone();
+        let pos = pos.translation.vector;
+        pos.x > 0. && pos.x < (WIDTH + 2.*BORDER + MARGIN_LEFT) && pos.y > 0. && pos.y < (HEIGHT + 2.*BORDER + MARGIN_TOP)
+    }
+
     fn step(&mut self) {
         self.world.step();
 
         // Apply the Zgravity manually
         if let Some(ball) = self.white_ball_handle {
-            self.z_gravity.apply_force(&mut self.world, ball);
+            if self.in_world(ball) {
+                self.z_gravity.apply_force(&mut self.world, ball);
+            }
+            else {
+                self.drop_ball(&ball);
+            }
         }
         if let Some(ball) = self.ball_8_handle {
             self.z_gravity.apply_force(&mut self.world, ball);
