@@ -38,13 +38,22 @@ const MARGIN_LEFT: f32 = 2000.;
 const BORDER: f32 = 560.;
 const BAND: f32 = 160.;
 const HOLE_SIZE: f32 = 320.;
+
+const BALL_RESTITUTION: f32 = 0.4;
+
 const CANE_SIZE: f32 = 1800.;
+const HELP_LINE_SIZE: f32 = 2600.;
+const HELP_LINE_WIDTH: f32 = 0.15;
+const FORCE_STEP: f32 = 50.;
+const ANGLE_STEP: f32 = 0.5;
+const MAX_FORCE: f32 = 1400.;
 
 
 const WORD_SCALE_FACTOR: f32 = 0.05;
 const TIME_STEP: f32 = 1. / 60.;
 
-const Z_GRAVITY: f32 = -0.9;
+const Z_GRAVITY: f32 = -0.86;
+
 
 pub struct ZGravity {}
 
@@ -369,7 +378,7 @@ impl PoolTable {
     }
 
     fn ball_material(&self) -> Material<f32> {
-        Material::new(0.50, 1.)
+        Material::new(BALL_RESTITUTION, 0.)
     }
 
     fn ball_shape(&self) -> ShapeHandle<f32> {
@@ -491,21 +500,21 @@ impl PoolTable {
 
     fn has_force(&self) -> bool {
         if self.is_active(self.white_ball_handle) {
-            return true;
+            return true
         }
 
         if self.is_active(self.ball_8_handle) {
-            return true;
+            return true
         }
 
         for ball_handle in self.red_balls_handles.iter() {
             if self.is_active(Some(*ball_handle)) {
-                return true;
+                return true
             }
         }
         for ball_handle in self.yellow_balls_handles.iter() {
             if self.is_active(Some(*ball_handle)) {
-                return true;
+                return true
             }
         }
 
@@ -617,8 +626,8 @@ impl State for PoolGameUI {
             let mut pos = pos.translation.vector;
 
             let rot = self.cane_rotation.to_radians();
-            pos.x = pos.x - (CANE_SIZE + BALL_SIZE + (self.cane_force)) * rot.cos();
-            pos.y = pos.y - (CANE_SIZE + BALL_SIZE + (self.cane_force)) * rot.sin();
+            pos.x = pos.x - (CANE_SIZE + BALL_SIZE + (self.cane_force * 2.5)) * rot.cos();
+            pos.y = pos.y - (CANE_SIZE + BALL_SIZE + (self.cane_force * 2.5)) * rot.sin();
             window.draw_ex(
                 &Rectangle::from_cuboid(FromNPVec(pos), &queue),
                 Col(Color::RED),
@@ -626,13 +635,13 @@ impl State for PoolGameUI {
                 0, // we don't really care about the Z value
             );
 
-            let queue = Cuboid::new(Vector2::new(CANE_SIZE * WORD_SCALE_FACTOR, 0.25));
+            let queue = Cuboid::new(Vector2::new(HELP_LINE_SIZE * WORD_SCALE_FACTOR, HELP_LINE_WIDTH));
             let pos = ball_object.position().clone();
             let mut pos = pos.translation.vector;
 
             let rot = self.cane_rotation.to_radians();
-            pos.x = pos.x + (CANE_SIZE + BALL_SIZE + (self.cane_force)) * rot.cos();
-            pos.y = pos.y + (CANE_SIZE + BALL_SIZE + (self.cane_force)) * rot.sin();
+            pos.x = pos.x + (HELP_LINE_SIZE + BALL_SIZE + (self.cane_force * 5.)) * rot.cos();
+            pos.y = pos.y + (HELP_LINE_SIZE + BALL_SIZE + (self.cane_force * 5.)) * rot.sin();
             window.draw_ex(
                 &Rectangle::from_cuboid(FromNPVec(pos), &queue),
                 Col(Color::BLUE),
@@ -647,40 +656,36 @@ impl State for PoolGameUI {
     fn update(&mut self, window: &mut Window) -> Result<()> {
         self.pool_table.step();
 
-        if window.keyboard()[Key::Right].is_down() {
-            if window.keyboard()[Key::LControl].is_down()
-                || window.keyboard()[Key::RControl].is_down()
-            {
-                self.cane_rotation += 5.;
-            } else if window.keyboard()[Key::LAlt].is_down() {
-                self.cane_rotation += 0.1;
-            } else {
-                self.cane_rotation += 0.5;
-            }
-        }
-        if window.keyboard()[Key::Left].is_down() {
-            if window.keyboard()[Key::LControl].is_down()
-                || window.keyboard()[Key::RControl].is_down()
-            {
-                self.cane_rotation -= 5.;
-            } else if window.keyboard()[Key::LAlt].is_down() {
-                self.cane_rotation -= 0.1;
-            } else {
-                self.cane_rotation -= 0.5;
-            }
+        let mut force = FORCE_STEP;
+        let mut angle = ANGLE_STEP;
+
+        if window.keyboard()[Key::LControl].is_down()
+            || window.keyboard()[Key::RControl].is_down()
+        {
+            force = force * 10.;
+            angle = angle * 10.;
+        } else if window.keyboard()[Key::LAlt].is_down() {
+            force = force * 0.2;
+            angle = angle * 0.2;
         }
 
+        if window.keyboard()[Key::Right].is_down() {
+            self.cane_rotation += angle;
+        }
+        if window.keyboard()[Key::Left].is_down() {
+            self.cane_rotation -= angle;
+        }
         if window.keyboard()[Key::Down].is_down() {
-            self.cane_force += 50.;
+            self.cane_force += force;
         }
         if window.keyboard()[Key::Up].is_down() {
-            self.cane_force -= 50.;
+            self.cane_force -= force;
         }
         if self.cane_force < 0. {
             self.cane_force = 0.;
         }
-        if self.cane_force > 1350. {
-            self.cane_force = 1350.;
+        if self.cane_force > MAX_FORCE {
+            self.cane_force = MAX_FORCE;
         }
 
         if window.keyboard()[Key::Return].is_down() {
@@ -691,7 +696,7 @@ impl State for PoolGameUI {
 
             if !self.pool_table.has_force() {
                 self.pool_table.shoot(cane_force_x, cane_force_y);
-                self.cane_force = 5.0;
+                self.cane_force = FORCE_STEP;
             }
         }
 
