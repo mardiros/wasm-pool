@@ -136,83 +136,88 @@ impl PoolTable {
         let top = MARGIN_TOP + BORDER;
         let left = MARGIN_LEFT + BORDER;
 
+        let half_band = BAND / 2.;
+        let half_vertical_height = vertical_height / 2.;
+        let half_horizontal_width = horizontal_width / 2.;
+        let half_half_horizontal_width_thin = half_horizontal_width_thin / 2.;
+        let half_vertical_height_thin = vertical_height_thin / 2.;
+
         // top
         self.add_bound(
-            left + horizontal_width / 2.,
+            left + half_horizontal_width,
             top - BAND,
-            horizontal_width / 2.,
-            BAND / 2.,
+            half_horizontal_width,
+            BAND,
         );
-
         self.add_bound(
-            left + HOLE_SIZE + BAND * 1.5 + half_horizontal_width_thin / 2.,
-            top + BAND / 2.,
-            half_horizontal_width_thin / 2.,
-            BAND / 2.,
+            left + HOLE_SIZE + BAND * 1.5 + half_half_horizontal_width_thin,
+            top + half_band,
+            half_half_horizontal_width_thin,
+            half_band,
         );
 
         self.add_bound(
             left + 2. * HOLE_SIZE
                 + 5.5 * BAND
                 + half_horizontal_width_thin
-                + half_horizontal_width_thin / 2.,
-            top + BAND / 2.,
-            half_horizontal_width_thin / 2.,
-            BAND / 2.,
+                + half_half_horizontal_width_thin,
+            top + half_band,
+            half_half_horizontal_width_thin,
+            half_band,
         );
 
         // left
         self.add_bound(
             left - BAND,
-            top + vertical_height / 2.,
-            BAND / 2.,
-            vertical_height / 2.,
+            top + half_vertical_height,
+            BAND,
+            half_vertical_height,
         );
         self.add_bound(
-            left + BAND / 2.,
-            top + HOLE_SIZE + BAND * 1.5 + vertical_height_thin / 2.,
-            BAND / 2.,
-            vertical_height_thin / 2.,
+            left + half_band,
+            top + HOLE_SIZE + BAND * 1.5 + half_vertical_height_thin,
+            half_band,
+            half_vertical_height_thin,
         );
 
         // bottom
         self.add_bound(
-            left + horizontal_width / 2.,
+            left + half_horizontal_width,
             top + vertical_height + BAND,
-            horizontal_width / 2.,
-            BAND / 2.,
+            half_horizontal_width,
+            BAND,
         );
 
         self.add_bound(
-            left + HOLE_SIZE + BAND * 1.5 + half_horizontal_width_thin / 2.,
+            left + HOLE_SIZE + BAND * 1.5 + half_half_horizontal_width_thin,
             top + vertical_height_thin + 2. * HOLE_SIZE + 2.5 * BAND,
-            half_horizontal_width_thin / 2.,
-            BAND / 2.,
+            half_half_horizontal_width_thin,
+            half_band,
         );
 
         self.add_bound(
             left + 2. * HOLE_SIZE
                 + 5.5 * BAND
                 + half_horizontal_width_thin
-                + half_horizontal_width_thin / 2.,
+                + half_half_horizontal_width_thin,
             top + vertical_height_thin + 2. * HOLE_SIZE + 2.5 * BAND,
-            half_horizontal_width_thin / 2.,
-            BAND / 2.,
+            half_half_horizontal_width_thin,
+            half_band,
         );
 
         // right
         self.add_bound(
             left + horizontal_width + BAND,
-            top + vertical_height / 2.,
-            BAND / 2.,
-            vertical_height / 2.,
+            top + half_vertical_height,
+            BAND,
+            half_vertical_height,
         );
 
         self.add_bound(
             left + horizontal_width_thin + HOLE_SIZE + BAND * 1.5,
-            top + HOLE_SIZE + BAND * 1.5 + vertical_height_thin / 2.,
-            BAND / 2.,
-            vertical_height_thin / 2.,
+            top + HOLE_SIZE + BAND * 1.5 + half_vertical_height_thin,
+            half_band,
+            half_vertical_height_thin,
         );
     }
 
